@@ -20,6 +20,7 @@ class ZDXServer:
         self.port = port
         self.running = False
         self.peers = {}
+        self.capabilities = {}
         self.state = ZDXState()
 
     def handle_client(self, conn, address):
@@ -29,26 +30,19 @@ class ZDXServer:
                 if message.kind == "identity":
                     self.peers[address] = message.payload
                     self.state.record_peer(address, message.payload)
-                    send_message(
-                        conn,
-                        ZDXMessage(
-                            kind="identity_ack",
-                            payload={"accepted": True},
-                        ),
-                    )
+                    send_message(conn, ZDXMessage(kind="identity_ack", payload={"accepted": True}))
+                elif message.kind == "capability_report":
+                    self.capabilities[address] = message.payload
+                    self.state.record_peer(address, {"capabilities": message.payload})
+                    send_message(conn, ZDXMessage(kind="capability_ack", payload={"accepted": True}))
                 elif message.kind == "heartbeat":
                     self.state.record_heartbeat()
                     send_message(conn, heartbeat())
                 else:
-                    send_message(
-                        conn,
-                        ZDXMessage(
-                            kind="ack",
-                            payload={"received": message.kind},
-                        ),
-                    )
+                    send_message(conn, ZDXMessage(kind="ack", payload={"received": message.kind}))
         except (ConnectionError, OSError):
             self.peers.pop(address, None)
+            self.capabilities.pop(address, None)
         finally:
             conn.close()
 
@@ -61,11 +55,7 @@ class ZDXServer:
 
             while self.running:
                 conn, address = server.accept()
-                thread = threading.Thread(
-                    target=self.handle_client,
-                    args=(conn, address),
-                    daemon=True,
-                )
+                thread = threading.Thread(target=self.handle_client, args=(conn, address), daemon=True)
                 thread.start()
 
     def stop(self):
