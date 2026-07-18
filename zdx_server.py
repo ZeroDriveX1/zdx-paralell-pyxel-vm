@@ -11,6 +11,7 @@ import socket
 import threading
 
 from zdx_network import recv_message, send_message, ZDXMessage, heartbeat
+from zdx_state import ZDXState
 
 
 class ZDXServer:
@@ -19,6 +20,7 @@ class ZDXServer:
         self.port = port
         self.running = False
         self.peers = {}
+        self.state = ZDXState()
 
     def handle_client(self, conn, address):
         try:
@@ -26,6 +28,7 @@ class ZDXServer:
                 message = recv_message(conn)
                 if message.kind == "identity":
                     self.peers[address] = message.payload
+                    self.state.record_peer(address, message.payload)
                     send_message(
                         conn,
                         ZDXMessage(
@@ -34,6 +37,7 @@ class ZDXServer:
                         ),
                     )
                 elif message.kind == "heartbeat":
+                    self.state.record_heartbeat()
                     send_message(conn, heartbeat())
                 else:
                     send_message(
