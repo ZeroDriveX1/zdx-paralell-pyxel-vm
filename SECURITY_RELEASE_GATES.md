@@ -96,6 +96,49 @@ Required outputs:
 - remediation plan
 - retest confirmation
 
+## Security Research Reward Authority Exception
+
+Open-Pyxel operation does not include creator privileges during normal network activity.
+
+Network compute, access, verification, and contribution rules apply equally to all participants.
+
+A limited operational authority exists only for security research reward administration.
+
+This authority is not used for:
+
+- compute priority
+- workload assignment advantage
+- training access advantage
+- node trust elevation
+- protocol bypass rights
+- altering normal network rules
+
+Purpose:
+
+An accountable entity is required to validate security reports, coordinate remediation, and issue researcher rewards.
+
+After public network launch, validated security researchers and teams may receive network credits for verified findings according to the security reward process.
+
+This authority must remain:
+
+- auditable
+- logged
+- limited in scope
+- separate from normal network operation
+
+## Future Authority Expansion Governance Rule
+
+Any future requirement for capabilities resembling creator authority, privileged execution, or exceptional network control must not be introduced unilaterally.
+
+If future operations require authority beyond normal participant rules:
+
+- The requirement must be publicly documented.
+- The purpose and scope must be defined.
+- The decentralization impact must be reviewed.
+- A network-wide vote must approve the change before activation.
+
+No permanent creator privilege may be expanded without explicit network approval.
+
 ## Release Gate
 
 Public launch requires:
