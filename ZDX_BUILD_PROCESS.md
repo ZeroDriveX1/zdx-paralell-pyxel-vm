@@ -1,8 +1,109 @@
-Open pyxel build process.
-0. Consult TODO first. And update it after each build pass.  Check off finished features and if any new features are need in the future add to the todo yet list. And also update all correponding documents (all docs must be current and updated throughly). Then update CHANGES.md (once versioning is started at stable build).
-1. Report code intent and feature implantation. 
-2. Map out the build pass for approval
-3. Once greenlit in the current build map complete the pass.
-4. Give a status report after build pass. Any unexpected roadblocks? Any features u are unsure of the status ? Does anything need to be updated (stubbed, old version or package used as a bride etc
-.)
-5. Once build is at a stable place (approx 4-5 passes away) versioning will takeover. Everything must be docmented in update.md after an update and version bumped. Old readme.md archived appropriately etc..
+# Open-Pyxel Development Build Process
+
+## Purpose
+
+Defines the required workflow for all Open-Pyxel development passes.
+
+Priority:
+
+security > correctness > maintainability > features
+
+## Build Pass Workflow
+
+### 0. Review TODO and Architecture
+
+Before coding:
+- Review current TODO documents.
+- Review existing implementation patterns.
+- Identify compatibility risks.
+- Update TODO after each completed pass.
+- Keep documentation synchronized.
+
+### 1. Code Intent
+
+Before implementation document:
+- purpose of the change
+- affected systems
+- security impact
+- risks and dependencies
+
+### 2. Build Map Approval
+
+Define:
+- implementation steps
+- files affected
+- tests required
+- documentation updates
+- failure scenarios
+
+Only execute after approval.
+
+### 3. Implementation
+
+Rules:
+- Preserve working systems.
+- Avoid unnecessary rewrites.
+- Make focused commits.
+- Add tests with new behavior.
+
+### 4. Verification Report
+
+After each pass report:
+- completed changes
+- commits
+- tests
+- unexpected issues
+- technical debt
+- documentation status
+
+### 5. Security Gate
+
+For identity, network, protocol, or compute changes review:
+- authentication
+- authorization
+- input validation
+- replay protection
+- abuse cases
+- failure handling
+
+### 6. Architecture Review
+
+Major milestones require:
+- code review
+- architecture review
+- simplification review
+- red-team review
+- documentation review
+
+## Required Future Change Flow
+
+1. Proposal
+2. Build map
+3. Implementation
+4. Unit tests
+5. Integration tests
+6. Security review
+7. Red-team review
+8. Documentation update
+9. Merge
+
+## Current Security Milestone
+
+Active work:
+- cryptographic node identity
+- signed protocol messages
+- authenticated sessions
+- replay prevention
+- revocation support
+- enrollment control
+
+After security completion:
+Pause feature expansion and perform architecture/threat-model review before continuing development.
+
+## Stable Release Process
+
+When stable:
+- introduce versioning
+- maintain changelog
+- archive obsolete documentation
+- maintain release notes
