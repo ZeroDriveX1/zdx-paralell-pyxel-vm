@@ -1,0 +1,111 @@
+# ZDX Open-Pyxel — Master To-Do List
+
+Last updated: [date] — updated after every build pass, no exceptions.
+Status legend: [x] done & verified · [~] in progress / partial · [ ] not started · [!] blocked
+
+---
+
+## security/ — Identity & Authentication
+
+- [x] Persistent node identity (ZDXNodeIdentity, disk-backed, survives restart)
+- [x] Node identity consistency — ZDXNode, ZDXNodeAgent, detect_capabilities()
+      all use ZDXNodeIdentity as single source of truth (no independent uuid4() calls)
+- [x] Ed25519 keypair generation + persistent storage
+- [x] Private key permission hardening (0600)
+- [x] node_id deterministically derived from public key hash
+- [x] Signed protocol envelope (version, timestamp, nonce, sequence, node_id, payload, signature)
+- [x] Signature verification layer
+- [ ] key_store.py — OS-specific secure storage, encrypted export/recovery, rotation support
+- [ ] session_auth.py — HELLO handshake, challenge/response, authenticated sessions
+- [ ] replay_guard.py — nonce tracking, sequence validation, stale message rejection
+- [ ] revocation.py — revoked identity registry
+- [ ] Revocation checked per-session or per-message (not just at initial handshake)
+
+## Networking / Transport
+
+- [x] Length-prefixed JSON envelope protocol (zdx_network.py)
+- [x] Message size limits enforced (send + receive)
+- [x] TCP server accepting connections, routing by message kind (zdx_server.py)
+- [ ] Server returns real enrollment status (pending/approved/unknown) on
+      identity/capability messages — currently acks unconditionally
+- [ ] try/except around message decode — malformed peer input shouldn't
+      crash a handler thread
+- [ ] Socket timeout on accepted connections (currently blocks indefinitely
+      on a silent peer)
+- [ ] Peers keyed by node_id, not socket address (depends on identity
+      consistency fix being live in zdx_server.py)
+- [ ] TLS / encrypted transport (currently plaintext TCP — documented future work)
+
+## Node Tracking — Consolidation
+
+- [ ] Decide canonical "known nodes" tracker — currently THREE separate
+      implementations exist (ZDXDiscovery w/ staleness expiry,
+      ZDXNodeRegistry w/o expiry, ZDXState referenced but unreviewed)
+- [ ] Consolidate or delegate duplicates to the canonical one
+
+## Enrollment
+
+- [x] Enrollment request/approve/status gate (ZDXEnrollment)
+- [x] Enrollment handshake ties identity signature to enrollment request
+- [ ] Enrollment status actually surfaced over the wire (see Networking above)
+- [ ] Decide: closed/manual enrollment only, or any path to semi-automated
+      approval later — keep closed until compute verification is live
+
+## Boot Sequence / Recovery
+
+- [ ] zdx_bootsequence.py — persisted identity load, connect w/ backoff,
+      re-announce, resume heartbeat loop after crash/reboot
+- [ ] End-to-end test: kill process, restart, confirm same node_id and
+      same enrollment status returned (this is the real proof gap #1 and
+      the enrollment-status gap are actually closed, not just individually)
+
+## compute/ — Contribution Metering & Verification
+
+- [ ] metering.py — resource accounting, workload receipts, contribution
+      records (server-side authoritative, never trusts node self-report alone)
+- [ ] verification.py
+  - [ ] Deterministic re-execution verification (coordinator replays job)
+  - [ ] Redundant multi-node verification path for expensive jobs
+  - [ ] Timing plausibility check — relative to each node's own historical
+        baseline, not a global threshold
+  - [ ] Duplicate contribution detection — keyed on (job_id, node_id)
+  - [ ] Fraud classification (fabricated / duplicate / signature-valid-but-false)
+- [ ] workload_receipts.py — signed job assignments, completion receipts,
+      verification records
+- [ ] Explicit constraint check: confirm no opcode introduces non-determinism
+      (real time, hardware RNG, sensor input) that would break
+      recompute-based verification — audit this before adding new opcodes
+
+## trust/ — Reputation & Revocation
+
+- [ ] reputation.py — contribution scoring, historical reliability, confidence model
+- [ ] Explicit fraud-pattern threshold defined (e.g., N malicious-classified
+      failures within window X) — must be a stated number, not an implied
+      judgment call
+- [ ] Legitimate-failure vs malicious-failure distinction implemented
+      (network blip / hardware fault ≠ revocation trigger)
+- [ ] Reputation feedback loop into security/revocation.py
+
+## Economic Layer (compute credit currency) — DO NOT START before compute/ + trust/ are live
+
+- [ ] Ledger design (credit earned / spent, durable, survives restart)
+- [ ] Credit-to-compute-time redemption logic
+- [ ] Explicit decision: closed/trusted node set only until verification
+      system is proven — do not open to arbitrary contributors before this
+
+## Documentation / Versioning (activate once build is stable, ~4-5 passes out)
+
+- [ ] UPDATE.md — required entry after every version bump
+- [ ] README.md archived appropriately on major version changes
+- [ ] Version bump discipline begins
+
+---
+
+## Build Pass Log
+(Agent: append one entry per pass. Reference item(s) above by exact line text.)
+
+### Pass N — [date]
+- Targeted: [item(s) from list above]
+- Result: [closed / partial / blocked]
+- New issues found: [...]
+- Anything stubbed / bridged with old code / uncertain status: [...]
