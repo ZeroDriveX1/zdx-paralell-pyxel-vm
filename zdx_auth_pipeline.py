@@ -1,13 +1,14 @@
 """
-ZDX Authentication Pipeline with DoS Protection.
+ZDX Authentication Pipeline with DoS Protection and Ed25519 Asymmetric Signatures.
 
 Implements a hardened authentication pipeline that verifies cryptographic identity
-BEFORE expensive state operations to prevent denial-of-service attacks.
+using Ed25519 public-key cryptography BEFORE expensive state operations to prevent
+denial-of-service attacks.
 
 Pipeline order (DoS-resistant):
 1. Protocol version sanity check (cheap)
 2. Timestamp sanity check (cheap)
-3. Signature verification (cryptographic, cheap relative to state ops)
+3. Ed25519 signature verification (cryptographic, cheap relative to state ops)
 4. Revocation check (in-memory lookup)
 5. Enrollment state check
 6. ReplayGuard/Sequence validation (stateful, expensive)
@@ -15,20 +16,24 @@ Pipeline order (DoS-resistant):
 
 This ordering ensures:
 - Forged messages are rejected before consuming state tracking resources
-- Cryptographic identity verification occurs early
+- Cryptographic identity verification occurs early using Ed25519
+- Non-repudiation: signers cannot deny signing (asymmetric proof)
 - Denial-of-service resistance against unauthenticated peers
-- Rate limiting/admission controls can be added at dispatch
+- Rate limiting/admission controls applied only to verified peers
 
-See SECURITY_RELEASE_GATES.md and TODO.md for security review requirements.
+Integration with Karma System:
+- Signature verification failures report to karma system
+- ReplayGuardState tracks per-peer behavior for karma feedback
+- Suspicious patterns can trigger karma penalties
+
+See SECURITY_MODEL.md and TODO.md for design rationale.
 """
 
 from __future__ import annotations
 
 import time
-import hmac
-import hashlib
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 from collections import defaultdict
 
 
@@ -48,18 +53,6 @@ class AuthenticationError(Exception):
 
     def __str__(self):
         return f"AuthenticationError@{self.stage}: {self.reason} (peer: {self.peer_id})"
-
-
-@dataclass
-class AuthenticationContext:
-    """Holds authentication state for a message."""
-    peer_id: str
-    protocol_version: int
-    timestamp: float
-    signature: str
-    message_payload: dict
-    enrollment_state: Optional[dict] = None
-    verified: bool = False
 
 
 @dataclass
@@ -100,37 +93,56 @@ class ReplayGuardState:
 
 class ZDXAuthenticationPipeline:
     """
-    Hardened authentication pipeline with DoS resistance.
+    Hardened authentication pipeline with DoS resistance using Ed25519.
+
+    Uses public-key cryptography (Ed25519) for message authentication instead of
+    shared HMAC secrets. This provides:
+    - Non-repudiation (signer cannot deny signing)
+    - Better scalability (no shared secrets per peer)
+    - Industry standard (RFC 8032)
+    - Asymmetric trust model (public key known, private key secret)
 
     Usage:
         pipeline = ZDXAuthenticationPipeline(
-            verify_signature=my_verify_func,
-            check_revocation=my_revocation_func,
-            check_enrollment=my_enrollment_func,
-            dispatch_handler=my_dispatch_func,
+            verify_signature=ed25519_signer.verify_message,
+            check_revocation=revocation_list.is_revoked,
+            check_enrollment=enrollment_registry.check_status,
+            dispatch_handler=message_dispatcher,
         )
 
         try:
-            pipeline.process_message(peer_id, protocol_version, timestamp, signature, payload)
+            pipeline.process_message(
+                peer_id="node_abc",
+                protocol_version=1,
+                timestamp=time.time(),
+                signature=base64_ed25519_signature,
+                payload={"data": ...},
+                sequence=42
+            )
         except AuthenticationError as e:
-            # Handle auth failure
-            pass
+            # Handle auth failure, report to karma system
+            karma_system.report_event(e.peer_id, ...)
     """
 
     def __init__(
         self,
-        verify_signature: Callable[[str, str, dict], bool],
+        verify_signature: Callable[[str, dict, str], bool],
         check_revocation: Callable[[str], bool],
-        check_enrollment: Callable[[str], Tuple[bool, Optional[dict]]],
+        check_enrollment: Callable[[str], tuple[bool, Optional[dict]]],
         dispatch_handler: Callable[[str, dict], None],
     ):
         """
-        Initialize authentication pipeline.
+        Initialize authentication pipeline with Ed25519 verification.
 
         Args:
-            verify_signature: callable(peer_id, signature, payload) -> bool
+            verify_signature: callable(peer_id, payload, signature_b64) -> bool
+                Should use Ed25519Signer.verify_message() or equivalent
+                Signature is base64-encoded Ed25519 signature (64 bytes)
+                
             check_revocation: callable(peer_id) -> bool (True = revoked, reject)
+                
             check_enrollment: callable(peer_id) -> (is_enrolled, enrollment_state)
+                
             dispatch_handler: callable(peer_id, payload) -> None
         """
         self.verify_signature = verify_signature
@@ -158,13 +170,22 @@ class ZDXAuthenticationPipeline:
         DoS-resistant order:
         1. Protocol version validation
         2. Timestamp sanity check
-        3. Signature verification (cryptographic)
+        3. Ed25519 signature verification (cryptographic)
         4. Revocation check
         5. Enrollment validation
         6. Rate limiting / Replay protection
         7. Dispatch
 
-        Raises AuthenticationError if any stage fails.
+        Args:
+            peer_id: Source node ID
+            protocol_version: Protocol version
+            timestamp: Message timestamp (seconds since epoch)
+            signature: Base64-encoded Ed25519 signature
+            payload: Message payload dict
+            sequence: Optional sequence number for replay protection
+
+        Raises:
+            AuthenticationError if any stage fails
         """
         try:
             # Stage 1: Protocol version sanity check (cheap)
@@ -173,8 +194,10 @@ class ZDXAuthenticationPipeline:
             # Stage 2: Timestamp sanity check (cheap)
             self._validate_timestamp(peer_id, timestamp)
 
-            # Stage 3: Signature verification (cryptographic, reject forgeries early)
-            self._verify_signature(peer_id, signature, payload)
+            # Stage 3: Ed25519 signature verification (cryptographic, reject forgeries early)
+            # This is the critical DoS defense: reject forged messages BEFORE
+            # consuming state tracking resources
+            self._verify_ed25519_signature(peer_id, signature, payload)
 
             # Stage 4: Revocation check (in-memory lookup)
             self._check_revoked(peer_id)
@@ -215,20 +238,35 @@ class ZDXAuthenticationPipeline:
                 peer_id=peer_id,
             )
 
-    def _verify_signature(self, peer_id: str, signature: str, payload: dict) -> bool:
+    def _verify_ed25519_signature(
+        self, peer_id: str, signature: str, payload: dict
+    ) -> bool:
         """
-        Stage 3: Verify cryptographic signature.
+        Stage 3: Verify Ed25519 cryptographic signature.
 
         This is the critical DoS defense: reject forged messages BEFORE
         consuming state tracking resources.
 
-        Returns True if signature is valid.
-        Raises AuthenticationError if signature verification fails.
+        Uses Ed25519 public-key cryptography (asymmetric):
+        - Signature is base64-encoded 64-byte Ed25519 signature
+        - Verification uses peer's public key (shared during enrollment)
+        - Non-repudiation: signer cannot deny signing
+
+        Args:
+            peer_id: Peer node ID
+            signature: Base64-encoded Ed25519 signature
+            payload: Message payload dict
+
+        Returns:
+            True if signature is valid
+
+        Raises:
+            AuthenticationError if signature verification fails
         """
-        if not self.verify_signature(peer_id, signature, payload):
+        if not self.verify_signature(peer_id, payload, signature):
             raise AuthenticationError(
                 stage="signature_verification",
-                reason="cryptographic signature verification failed",
+                reason="Ed25519 signature verification failed (forged or modified message)",
                 peer_id=peer_id,
             )
         return True
@@ -238,7 +276,7 @@ class ZDXAuthenticationPipeline:
         if self.check_revocation(peer_id):
             raise AuthenticationError(
                 stage="revocation_check",
-                reason="peer is revoked",
+                reason="peer is revoked (removed from network)",
                 peer_id=peer_id,
             )
         return True
@@ -249,7 +287,7 @@ class ZDXAuthenticationPipeline:
         if not is_enrolled:
             raise AuthenticationError(
                 stage="enrollment_check",
-                reason="peer is not enrolled",
+                reason="peer is not enrolled (public key not registered)",
                 peer_id=peer_id,
             )
         return enrollment_state
@@ -260,6 +298,12 @@ class ZDXAuthenticationPipeline:
 
         Only performed AFTER cryptographic identity verification.
         This prevents unauthenticated peers from consuming rate-limit state.
+
+        Returns:
+            True if within rate limits
+
+        Raises:
+            AuthenticationError if rate limit exceeded
         """
         guard = self._replay_guards[peer_id]
         guard.peer_id = peer_id
@@ -277,6 +321,12 @@ class ZDXAuthenticationPipeline:
 
         Only performed AFTER cryptographic identity verification.
         Prevents forged messages from consuming replay state.
+
+        Returns:
+            True if sequence is valid (not replayed)
+
+        Raises:
+            AuthenticationError if replay detected
         """
         guard = self._replay_guards[peer_id]
         guard.peer_id = peer_id
@@ -298,57 +348,3 @@ class ZDXAuthenticationPipeline:
         """Clear replay state for a peer (e.g., on revocation)."""
         if peer_id in self._replay_guards:
             del self._replay_guards[peer_id]
-
-
-class SignatureVerifier:
-    """Helper for deterministic signature verification."""
-
-    @staticmethod
-    def compute_message_hash(payload: dict) -> str:
-        """Compute deterministic SHA256 hash of payload."""
-        import json
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(canonical.encode()).hexdigest()
-
-    @staticmethod
-    def verify_hmac_signature(
-        shared_secret: str, payload: dict, provided_signature: str
-    ) -> bool:
-        """
-        Verify HMAC-SHA256 signature.
-
-        For testing and development. Production should use Ed25519 asymmetric signatures.
-        """
-        import json
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        expected_sig = hmac.new(
-            shared_secret.encode(), canonical.encode(), hashlib.sha256
-        ).hexdigest()
-        return hmac.compare_digest(expected_sig, provided_signature)
-
-
-# Example usage for testing
-def create_example_pipeline():
-    """Create an example pipeline with stub implementations."""
-
-    def verify_sig(peer_id: str, sig: str, payload: dict) -> bool:
-        # Stub: always succeed in demo
-        return True
-
-    def check_revoked(peer_id: str) -> bool:
-        # Stub: never revoked
-        return False
-
-    def check_enrolled(peer_id: str) -> Tuple[bool, Optional[dict]]:
-        # Stub: always enrolled
-        return True, {"status": "active"}
-
-    def dispatch(peer_id: str, payload: dict) -> None:
-        print(f"[DISPATCH] Message from {peer_id}: {payload}")
-
-    return ZDXAuthenticationPipeline(
-        verify_signature=verify_sig,
-        check_revocation=check_revoked,
-        check_enrollment=check_enrolled,
-        dispatch_handler=dispatch,
-    )
