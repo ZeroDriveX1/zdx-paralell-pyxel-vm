@@ -4,6 +4,26 @@
 
 The permanent public Open-Pyxel network must not open until security validation is complete.
 
+## Adversarial Development Network Phase
+
+Before public release, Open-Pyxel will operate a controlled adversarial development network.
+
+Purpose:
+
+Allow authorized security teams and researchers to actively test the network before permanent public deployment.
+
+The goal is to discover vulnerabilities early, validate defenses, and improve the threat model.
+
+## Access Model
+
+The adversarial network remains controlled:
+
+- Authorized participants only.
+- Registered testing identities.
+- Defined testing scope.
+- Security event logging enabled.
+- Findings tracked through remediation.
+
 ## Development Beta Phase
 
 Before public release:
@@ -13,6 +33,22 @@ Before public release:
 - Limit initial deployment to fewer than 100 devices.
 - Enable full security logging and monitoring.
 - Use beta results to improve architecture and threat models.
+
+## Authorized Attack Areas
+
+Testing may include:
+
+- Identity impersonation resistance.
+- Authentication bypass attempts.
+- Replay protection testing.
+- Protocol manipulation.
+- Enrollment abuse.
+- Revocation behavior.
+- Peer discovery attacks.
+- Resource exhaustion attempts.
+- Compute contribution fraud attempts.
+- Reputation manipulation.
+- Failure recovery testing.
 
 ## Heavy Red-Team Review
 
@@ -34,6 +70,8 @@ Acceptance requirement:
 Successful impersonation attacks: 0/*
 
 Successful replay attacks: 0/*
+
+Critical unresolved vulnerabilities: 0
 
 Any successful identity compromise blocks release.
 
@@ -66,6 +104,7 @@ Public launch requires:
 - Authentication complete
 - Enrollment hardened
 - Compute verification complete
+- Adversarial testing completed
 - Red-team review complete
 - Penetration testing complete
 - Critical findings resolved
