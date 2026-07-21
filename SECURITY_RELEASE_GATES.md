@@ -137,7 +137,26 @@ If future operations require authority beyond normal participant rules:
 - The decentralization impact must be reviewed.
 - A network-wide vote must approve the change before activation.
 
-No permanent creator privilege may be expanded without explicit network approval.
+## Post-Launch Exceptional Actions Governance
+
+Once the network is live, any action outside normal protocol operation must be treated as a diplomatic governance matter.
+
+Exceptional actions include any action that could affect:
+
+- network operation
+- participant rights
+- protocol behavior
+- security authority
+- ecosystem rules
+
+Such actions require:
+
+- transparent communication
+- documented reasoning
+- stakeholder consideration
+- appropriate governance process
+
+No exceptional authority should become standard operation without explicit approval through the established network governance process.
 
 ## Release Gate
 
