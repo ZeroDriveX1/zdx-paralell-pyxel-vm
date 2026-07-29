@@ -8,8 +8,11 @@ ZeroDriveX1/zdx-paralell-pyxel-vm
 Diff
 Logs
 
-user: As of now I'll show you the completed build. And what we need to work on now. Ad the future builds so u can code with those in mind when u make the stuff were doing now
-.
+user:
+As of now I'll show you the completed build. And what we need to work on now. Ad the future builds so u can code with those in mind when u make the stuff were doing now
+
+
+
  Completed Foundations (work done):
 
 deterministic VM foundation
@@ -21,7 +24,9 @@ scheduler foundation
 frame manifest verification
 
 
-user: What we need to do now:
+user: 
+
+need to do now:
 
 Secure node enrollment
 Android ARM transport client
@@ -36,6 +41,7 @@ distributed device federation
 hardware acceleration support
 large-scale node management
 
+user: 
 If you need to get familiar with the code you can read the .md files in the repo first. 
   When we start let's do development passes. After each pass we need to update the documents. Keep 
 Everything changed and all progress documented and.easy to understand for any other agents I have work on the repo.
@@ -43,7 +49,7 @@ ___________
 
 Summary
 ___________
-pass #1
+pass #1.a
 
 Established the six ordered development passes—secure enrollment, Android ARM transport, multi-node simulation, workload manifests, scheduler improvements, and production deployment—with measurable completion gates. Long-term federation, hardware acceleration, and fleet-management requirements are now recorded as design constraints. 
 
@@ -149,11 +155,12 @@ Files (32)
 
 
 ____________________
-build pass #2 codex
+build pass #1.b codex
 ____________________
 
 
-user: Ok merge the repo after every completed task please.  And continue work on the next needed development in the TODO
+user: 
+Ok merge the repo after every completed task please.  And continue work on the next needed development in the TODO. pass 1.b.
 
 
 
@@ -208,10 +215,22 @@ ________________
 
 
 Files (37)
+
+
+
+
+
+
+___________________
+pass #1.c Codex
+___________________
+
+user:
 Ok finish pass 1. And move on to pass 2. Complete production grade professional code. Reflect over the files you create or have created and improve them if possible.
 Copy
 Summary
-Pass 1 — Secure Node Enrollment
+
+Pass 1.c — Secure Node Enrollment
 
 Completed Pass 1 by introducing an admission controller that verifies canonical authenticated envelopes before allowing access to discovery, scheduling, or stateful transport operations. Identity, protocol version, timestamp, sequence, action, and payload are all covered by the Ed25519 signature. 
 
@@ -229,42 +248,56 @@ Updated the TODO to record all Pass 1 requirements as complete.
 
 Committed Pass 1 separately as e4d8989 (feat: complete secure enrollment pass) and created the PR metadata titled “Complete Pass 1 secure enrollment admission and key rotation.”
 
+
+
+
+
+________________
+pass #2 Codex
+version 1.0.0 (versioning starts after pass 6)
+________________
+
+
 Pass 2 — Android ARM Transport
-Started Pass 2 with a real Gradle multi-module project containing an Android application and a separately testable pure Kotlin protocol module. The supported baseline is Android 13/API 33+, API 35 compilation, JVM 17, ARM64, TLS 1.2/1.3, and Android Keystore Ed25519. 
+   Started Pass 2 with a real Gradle multi-module project containing an Android application and a separately testable pure Kotlin protocol module
+(custom motion android protocol module)
+  
+  The supported baseline is Android 13/API 33+, API 35 compilation, JVM 17, ARM64, TLS 1.2/1.3, and Android Keystore Ed25519. 
 
-Added a non-exportable Android Keystore Ed25519 identity. Node identifiers are derived from the public-key digest rather than deprecated hardware serial identifiers. 
+   Added a non-exportable Android Keystore Ed25519 identity. Node identifiers are derived from the public-key digest rather than deprecated hardware serial identifiers. 
 
-Added hostname-verified TLS transport with system trust-store validation, explicit TLS 1.2/1.3 protocol selection, connection/read timeouts, bounded framing, synchronized exchanges, and deterministic resource cleanup. 
+   Added hostname-verified TLS transport with system trust-store validation, explicit TLS 1.2/1.3 protocol selection, connection/read timeouts, bounded framing, synchronized exchanges, and deterministic resource cleanup. 
 
-Added a Compose operator dashboard and foreground service shell. Compute participation is conservatively limited to validated Wi-Fi while charging and below severe thermal status; light participation still requires a validated network. 
+   Added a Compose operator dashboard and foreground service shell. Compute participation is conservatively limited to validated Wi-Fi while charging and below severe thermal status; light participation still requires a validated network. 
 
-Disabled cleartext Android traffic, made the service non-exported, and added static compatibility/security checks for manifest policy, transport framing, TLS hostname verification, SDK targets, and Keystore identity.
+   Disabled cleartext Android traffic, made the service non-exported, and added static compatibility/security checks for manifest policy, transport framing, TLS hostname verification, SDK targets, and Keystore identity.
 
-Added certificate-verified desktop TLS interoperability coverage using a temporary locally generated CA certificate and enrolled authenticated node.
+   Added certificate-verified desktop TLS interoperability coverage using a temporary locally generated CA certificate and enrolled authenticated node.
 
-Reflected critically on the Android implementation and did not mark Pass 2 complete. Remaining gates include Android-side enrollment/authenticated-envelope orchestration, golden protocol vectors, reconnect and heartbeat workers, verified frame-manifest synchronization, endpoint and fingerprint UX, SDK 35 APK builds, emulator and physical ARM testing, release signing, SBOM generation, and dependency scanning. 
+   (used reflection on this pass to double check android code) Reflected critically on the Android implementation and did not mark Pass 2 complete. Remaining gates include Android-side enrollment/authenticated-envelope orchestration, golden protocol vectors, reconnect and heartbeat workers, verified frame-manifest synchronization, endpoint and fingerprint UX, SDK 35 APK builds, emulator and physical ARM testing, release signing, SBOM generation, and dependency scanning. 
 
-Committed the Pass 2 increment separately as ff45488 (feat: start Android ARM secure transport pass) and created the PR metadata titled “Start Pass 2 Android ARM secure transport application.”
+   Committed the Pass 2 increment separately as ff45488 (feat: start Android ARM secure transport pass) and created the PR metadata titled “Start Pass 2 Android ARM secure transport application.”
 
-Review Findings and Commercial Opportunities
+   Review Findings and Commercial Opportunities
 The Android source previously lacked build metadata, transport, foreground notifications, and operator controls, and it used a deprecated hardware identifier. Those immediate architecture and privacy problems are now addressed. 
 
-No new server or relational database was added. Production fleet telemetry still requires tenant isolation, explicit consent, retention and deletion controls, regional compliance, transactional storage, and auditable migrations. 
+   No new server or relational database was added. Production fleet telemetry still requires tenant isolation, explicit consent, retention and deletion controls, regional compliance, transactional storage, and auditable migrations. 
 
-Potential commercial offerings include:
+  Potential commercial offerings include:
 
-managed Android fleet enrollment and certificate lifecycle,
+1. managed Android fleet enrollment and certificate lifecycle,
 
-enterprise private-CA onboarding,
+2. enterprise private-CA onboarding,
 
-consent-based battery and thermal fleet analytics,
+3. consent-based battery and thermal fleet analytics,
 
-certified device capability profiles,
+4. certified device capability profiles,
 
-compliance-grade audit and recovery services,
+5. compliance-grade audit and recovery services,
 
-managed Play Store or enterprise private-store distribution.
-These should remain gated on completion of the Android security, privacy, hardware-validation, and release requirements. 
+6. managed Play Store or enterprise private-store distribution.
+
+ These should remain gated on completion of the Android security, privacy, hardware-validation, and release requirements. 
 
 Testing
 
@@ -288,6 +321,7 @@ Testing
 
 ✅ git status --short --branch — clean working tree after both commits.
 
+(need to validate code on local env build as codex doesn't have ask for android in virtual environment)
 
 Files (63)
 
@@ -549,7 +583,7 @@ zdx_pixel_memory/store.py
 
 zdx_scheduler.py
 zdx_scheduler.py
-New
+
 
 zdx_server.py
 zdx_server.py
@@ -560,3 +594,456 @@ zdx_state.py
 zdx_state.py
 +4
 -4
+
+
+
+
+_________________
+pass 2.b Codex (review)
+_________________
+
+
+Check documentation updates and test run
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+
+Conversation
+Diff
+Logs
+
+Ok, after the last pass did you add documentation updates? Is android code ready to build? Do all tests pass? Do a test run on anything changed last pass besides the android build since you don't have the sdk available. Make sure all documentation is updated and move on to the next todo items for this pass now.
+Copy
+Summary
+Fixed the previous pass’s authentication integration tests by correcting the verifier callback argument order and isolating generated Ed25519 keys in pytest temporary directories. 
+
+Updated the architecture, security model, protocol, roadmap, README, changelog, Android documentation, and TODO status. The documentation now describes the authentication ordering, reputation layer, deployment limitations, and upcoming integration work. 
+
+Added a node operator guide covering key management, authentication monitoring, karma operations, and pre-deployment security requirements. 
+
+Confirmed that the Android code is not yet build-ready. It has Kotlin foundations, but lacks the Gradle project, manifest, resources, launcher activity, and test configuration. The exact readiness gates are now documented. 
+
+Updated the next-pass priorities to authenticated network integration, enrollment persistence, karma integration, the Android app shell, and restoration of multi-node simulations. 
+
+Committed the work as 9a721bb and created the pull request metadata with the title “Validate Ed25519 authentication tests and document build readiness.”
+
+Review Findings and Opportunities
+The authentication-specific suite now passes, but the entire repository suite does not pass. Collection remains blocked by:
+
+the zdx_node.py/zdx_node package naming collision, which prevents test_network.py from importing ZDXNode;
+
+the missing zdx_scheduler module required by the simulation suite.
+Both blockers are now recorded in the TODO. 
+
+The transport and authentication components are still separate. The current signature covers only canonicalized payload data—not peer ID, timestamp, sequence, or protocol envelope metadata—so the project should not yet be exposed to an untrusted public network. 
+
+Private keys are stored as unencrypted PEM material. Hardware-backed Android Keystore support, encrypted desktop key storage, and managed rotation/recovery would materially improve production readiness and could support a paid enterprise security/managed-node offering. 
+
+Potential commercial extensions include managed cluster monitoring, contribution accounting/billing, enterprise fleet administration, SLA-backed scheduling, and hosted enrollment/key-management services. The existing cluster, karma, and monitoring concepts provide a foundation, but automated dispatch and heartbeat integration remain unfinished. 
+
+Testing
+
+✅ python -m pytest test_auth_pipeline.py -q — 27 passed.
+
+✅ python -m coverage run -m pytest test_auth_pipeline.py -q && python -m coverage report -m zdx_auth_pipeline.py zdx_ed25519_signer.py — 27 passed; 80% combined coverage for the two authentication modules.
+
+✅ python -m compileall -q . -x '/(build|dist|\.git)/'
+
+✅ git diff --check
+
+⚠️ python -m pytest -q — repository-wide collection is blocked by the existing zdx_node module/package collision and missing zdx_scheduler; this is documented in the TODO rather than concealed. 
+
+⚠️ ./gradlew :app:assembleDebug — not run because the Android SDK is unavailable and the repository does not yet contain a Gradle wrapper or buildable Android project. 
+
+
+Files (11)
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++21
+-1
+
+CHANGELOG.md
+CHANGELOG.md
++16
+-4
+
+NODE_OPERATOR_GUIDE.md
+NODE_OPERATOR_GUIDE.md
+New
+
+README.md
+README.md
++8
+-0
+
+ROADMAP.md
+ROADMAP.md
++17
+-6
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++39
+-4
+
+TODO.md
+TODO.md
++28
+-21
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++20
+-0
+
+ANDROID_BUILD.md
+android/ANDROID_BUILD.md
++21
+-1
+
+README.md
+android/README.md
++8
+-2
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++15
+-15
+
+
+
+Check documentation updates and test run
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+
+Conversation
+Diff
+Logs
+
+Ok, after the last pass did you add documentation updates? Is android code ready to build? Do all tests pass? Do a test run on anything changed last pass besides the android build since you don't have the sdk available. Make sure all documentation is updated and move on to the next todo items for this pass now.
+Copy
+Summary
+Fixed the previous pass’s authentication integration tests by correcting the verifier callback argument order and isolating generated Ed25519 keys in pytest temporary directories. 
+
+Updated the architecture, security model, protocol, roadmap, README, changelog, Android documentation, and TODO status. The documentation now describes the authentication ordering, reputation layer, deployment limitations, and upcoming integration work. 
+
+Added a node operator guide covering key management, authentication monitoring, karma operations, and pre-deployment security requirements. 
+
+Confirmed that the Android code is not yet build-ready. It has Kotlin foundations, but lacks the Gradle project, manifest, resources, launcher activity, and test configuration. The exact readiness gates are now documented. 
+
+Updated the next-pass priorities to authenticated network integration, enrollment persistence, karma integration, the Android app shell, and restoration of multi-node simulations. 
+
+Committed the work as 9a721bb and created the pull request metadata with the title “Validate Ed25519 authentication tests and document build readiness.”
+
+Review Findings and Opportunities
+The authentication-specific suite now passes, but the entire repository suite does not pass. Collection remains blocked by:
+
+the zdx_node.py/zdx_node package naming collision, which prevents test_network.py from importing ZDXNode;
+
+the missing zdx_scheduler module required by the simulation suite.
+Both blockers are now recorded in the TODO. 
+
+The transport and authentication components are still separate. The current signature covers only canonicalized payload data—not peer ID, timestamp, sequence, or protocol envelope metadata—so the project should not yet be exposed to an untrusted public network. 
+
+Private keys are stored as unencrypted PEM material. Hardware-backed Android Keystore support, encrypted desktop key storage, and managed rotation/recovery would materially improve production readiness and could support a paid enterprise security/managed-node offering. 
+
+Potential commercial extensions include managed cluster monitoring, contribution accounting/billing, enterprise fleet administration, SLA-backed scheduling, and hosted enrollment/key-management services. The existing cluster, karma, and monitoring concepts provide a foundation, but automated dispatch and heartbeat integration remain unfinished. 
+
+Testing
+
+✅ python -m pytest test_auth_pipeline.py -q — 27 passed.
+
+✅ python -m coverage run -m pytest test_auth_pipeline.py -q && python -m coverage report -m zdx_auth_pipeline.py zdx_ed25519_signer.py — 27 passed; 80% combined coverage for the two authentication modules.
+
+✅ python -m compileall -q . -x '/(build|dist|\.git)/'
+
+✅ git diff --check
+
+⚠️ python -m pytest -q — repository-wide collection is blocked by the existing zdx_node module/package collision and missing zdx_scheduler; this is documented in the TODO rather than concealed. 
+
+⚠️ ./gradlew :app:assembleDebug — not run because the Android SDK is unavailable and the repository does not yet contain a Gradle wrapper or buildable Android project. 
+
+
+Files (11)
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++21
+-1
+
+CHANGELOG.md
+CHANGELOG.md
++16
+-4
+
+NODE_OPERATOR_GUIDE.md
+NODE_OPERATOR_GUIDE.md
+New
+
+README.md
+README.md
++8
+-0
+
+ROADMAP.md
+ROADMAP.md
++17
+-6
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++39
+-4
+
+TODO.md
+TODO.md
++28
+-21
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++20
+-0
+
+ANDROID_BUILD.md
+android/ANDROID_BUILD.md
++21
+-1
+
+README.md
+android/README.md
++8
+-2
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++15
+-15
+
+
+
+Check documentation updates and test run
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+
+Conversation
+Diff
+Logs
+
+Ok, after the last pass did you add documentation updates? Is android code ready to build? Do all tests pass? Do a test run on anything changed last pass besides the android build since you don't have the sdk available. Make sure all documentation is updated and move on to the next todo items for this pass now.
+Copy
+Summary
+Fixed the previous pass’s authentication integration tests by correcting the verifier callback argument order and isolating generated Ed25519 keys in pytest temporary directories. 
+
+Updated the architecture, security model, protocol, roadmap, README, changelog, Android documentation, and TODO status. The documentation now describes the authentication ordering, reputation layer, deployment limitations, and upcoming integration work. 
+
+Added a node operator guide covering key management, authentication monitoring, karma operations, and pre-deployment security requirements. 
+
+Confirmed that the Android code is not yet build-ready. It has Kotlin foundations, but lacks the Gradle project, manifest, resources, launcher activity, and test configuration. The exact readiness gates are now documented. 
+
+Updated the next-pass priorities to authenticated network integration, enrollment persistence, karma integration, the Android app shell, and restoration of multi-node simulations. 
+
+Committed the work as 9a721bb and created the pull request metadata with the title “Validate Ed25519 authentication tests and document build readiness.”
+
+Review Findings and Opportunities
+The authentication-specific suite now passes, but the entire repository suite does not pass. Collection remains blocked by:
+
+the zdx_node.py/zdx_node package naming collision, which prevents test_network.py from importing ZDXNode;
+
+the missing zdx_scheduler module required by the simulation suite.
+Both blockers are now recorded in the TODO. 
+
+The transport and authentication components are still separate. The current signature covers only canonicalized payload data—not peer ID, timestamp, sequence, or protocol envelope metadata—so the project should not yet be exposed to an untrusted public network. 
+
+Private keys are stored as unencrypted PEM material. Hardware-backed Android Keystore support, encrypted desktop key storage, and managed rotation/recovery would materially improve production readiness and could support a paid enterprise security/managed-node offering. 
+
+Potential commercial extensions include managed cluster monitoring, contribution accounting/billing, enterprise fleet administration, SLA-backed scheduling, and hosted enrollment/key-management services. The existing cluster, karma, and monitoring concepts provide a foundation, but automated dispatch and heartbeat integration remain unfinished. 
+
+Testing
+
+✅ python -m pytest test_auth_pipeline.py -q — 27 passed.
+
+✅ python -m coverage run -m pytest test_auth_pipeline.py -q && python -m coverage report -m zdx_auth_pipeline.py zdx_ed25519_signer.py — 27 passed; 80% combined coverage for the two authentication modules.
+
+✅ python -m compileall -q . -x '/(build|dist|\.git)/'
+
+✅ git diff --check
+
+⚠️ python -m pytest -q — repository-wide collection is blocked by the existing zdx_node module/package collision and missing zdx_scheduler; this is documented in the TODO rather than concealed. 
+
+⚠️ ./gradlew :app:assembleDebug — not run because the Android SDK is unavailable and the repository does not yet contain a Gradle wrapper or buildable Android project. 
+
+
+Files (11)
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++21
+-1
+
+CHANGELOG.md
+CHANGELOG.md
++16
+-4
+
+NODE_OPERATOR_GUIDE.md
+NODE_OPERATOR_GUIDE.md
+New
+
+README.md
+README.md
++8
+-0
+
+ROADMAP.md
+ROADMAP.md
++17
+-6
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++39
+-4
+
+TODO.md
+TODO.md
++28
+-21
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++20
+-0
+
+ANDROID_BUILD.md
+android/ANDROID_BUILD.md
++21
+-1
+
+README.md
+android/README.md
++8
+-2
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++15
+-15
+
+
+
+Check documentation updates and test run
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+
+Conversation
+Diff
+Logs
+
+Ok, after the last pass did you add documentation updates? Is android code ready to build? Do all tests pass? Do a test run on anything changed last pass besides the android build since you don't have the sdk available. Make sure all documentation is updated and move on to the next todo items for this pass now.
+Copy
+Summary
+Fixed the previous pass’s authentication integration tests by correcting the verifier callback argument order and isolating generated Ed25519 keys in pytest temporary directories. 
+
+Updated the architecture, security model, protocol, roadmap, README, changelog, Android documentation, and TODO status. The documentation now describes the authentication ordering, reputation layer, deployment limitations, and upcoming integration work. 
+
+Added a node operator guide covering key management, authentication monitoring, karma operations, and pre-deployment security requirements. 
+
+Confirmed that the Android code is not yet build-ready. It has Kotlin foundations, but lacks the Gradle project, manifest, resources, launcher activity, and test configuration. The exact readiness gates are now documented. 
+
+Updated the next-pass priorities to authenticated network integration, enrollment persistence, karma integration, the Android app shell, and restoration of multi-node simulations. 
+
+Committed the work as 9a721bb and created the pull request metadata with the title “Validate Ed25519 authentication tests and document build readiness.”
+
+Review Findings and Opportunities
+The authentication-specific suite now passes, but the entire repository suite does not pass. Collection remains blocked by:
+
+the zdx_node.py/zdx_node package naming collision, which prevents test_network.py from importing ZDXNode;
+
+the missing zdx_scheduler module required by the simulation suite.
+Both blockers are now recorded in the TODO. 
+
+The transport and authentication components are still separate. The current signature covers only canonicalized payload data—not peer ID, timestamp, sequence, or protocol envelope metadata—so the project should not yet be exposed to an untrusted public network. 
+
+Private keys are stored as unencrypted PEM material. Hardware-backed Android Keystore support, encrypted desktop key storage, and managed rotation/recovery would materially improve production readiness and could support a paid enterprise security/managed-node offering. 
+
+Potential commercial extensions include managed cluster monitoring, contribution accounting/billing, enterprise fleet administration, SLA-backed scheduling, and hosted enrollment/key-management services. The existing cluster, karma, and monitoring concepts provide a foundation, but automated dispatch and heartbeat integration remain unfinished. 
+
+Testing
+
+✅ python -m pytest test_auth_pipeline.py -q — 27 passed.
+
+✅ python -m coverage run -m pytest test_auth_pipeline.py -q && python -m coverage report -m zdx_auth_pipeline.py zdx_ed25519_signer.py — 27 passed; 80% combined coverage for the two authentication modules.
+
+✅ python -m compileall -q . -x '/(build|dist|\.git)/'
+
+✅ git diff --check
+
+⚠️ python -m pytest -q — repository-wide collection is blocked by the existing zdx_node module/package collision and missing zdx_scheduler; this is documented in the TODO rather than concealed. 
+
+⚠️ ./gradlew :app:assembleDebug — not run because the Android SDK is unavailable and the repository does not yet contain a Gradle wrapper or buildable Android project. 
+
+
+Files (11)
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++21
+-1
+
+CHANGELOG.md
+CHANGELOG.md
++16
+-4
+
+NODE_OPERATOR_GUIDE.md
+NODE_OPERATOR_GUIDE.md
+New
+
+README.md
+README.md
++8
+-0
+
+ROADMAP.md
+ROADMAP.md
++17
+-6
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++39
+-4
+
+TODO.md
+TODO.md
++28
+-21
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++20
+-0
+
+ANDROID_BUILD.md
+android/ANDROID_BUILD.md
++21
+-1
+
+README.md
+android/README.md
++8
+-2
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++15
+-15
+
+
+
