@@ -1,0 +1,82 @@
+# ZeroDriveX Parallel Pyxel VM -- Codex Prompt (Pass 6.0)
+
+## Mission
+
+Pass 5 is complete. Pass 6 is the production-hardening milestone.
+
+Read completely before modifying code: - README.md - ARCHITECTURE.md -
+SECURITY_MODEL.md - ROADMAP.md - DEVELOPMENT_STATUS.md - TODO.md (treat
+as authoritative) - CHANGELOG.md - TEST_PLAN.md - ZDX_PROTOCOL.md -
+NODE_OPERATOR_GUIDE.md
+
+Review every file modified in Passes 1--5 before writing code.
+
+## Engineering Rules
+
+-   Production quality only.
+-   No placeholders, TODO implementations, duplicated logic,
+    compatibility shims, dead code, or mock behavior.
+-   Improve existing code before adding new code when appropriate.
+-   Prefer deterministic behavior over cleverness.
+-   Keep APIs minimal, consistent, documented, and backwards compatible
+    where reasonable.
+-   If a subsystem can be simplified without reducing capability,
+    refactor it.
+
+## Pass 6 Objectives
+
+### 1. End-to-End Production Node
+
+Complete a real node capable of: - joining a federation - executing
+workloads - recovering after crashes - surviving coordinator failover -
+rotating certificates - restoring from backup - operating continuously
+
+### 2. Storage Hardening
+
+Implement durable storage: - transactional persistence - integrity
+verification - corruption repair where safe - encrypted state at rest -
+migration validation
+
+### 3. Hardware Security
+
+Support: - HSM / TPM abstraction - Android Keystore - secure key export
+policy - hardware-backed signing interface
+
+### 4. Chaos & Reliability
+
+Create deterministic chaos tests: - coordinator crashes - node crashes -
+partitions - clock skew - packet loss - delayed messages - duplicate
+delivery - storage corruption - recovery validation
+
+### 5. Performance
+
+Profile the system. Reduce allocations. Remove bottlenecks. Improve
+scheduler scalability without sacrificing determinism.
+
+### 6. Reflection (Required)
+
+Review every modified file and explicitly document: - duplicated logic
+removed - unnecessary abstractions removed - race conditions found or
+ruled out - lock ordering - deadlock analysis - memory lifetime - API
+consistency - security assumptions - deterministic guarantees - future
+technical debt - lessons learned
+
+If an implementation can be reduced by 30% while preserving behavior,
+refactor it.
+
+### 7. Documentation
+
+Synchronize every document with reality. Remove obsolete documentation.
+Document every production limitation still remaining.
+
+### 8. Testing
+
+Run: - full pytest - compileall - deterministic simulation suite - chaos
+suite - long-duration stability tests - coverage
+
+Report: - production readiness - remaining blockers - measurable
+performance improvements
+
+Do not begin Pass 7 until every Pass 6 release gate is satisfied.
+
+
