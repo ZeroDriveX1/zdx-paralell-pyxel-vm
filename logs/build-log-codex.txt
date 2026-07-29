@@ -1,0 +1,562 @@
+build pass #1 codex
+________________________
+
+Add future builds documentation and tasks
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+Diff
+Logs
+
+user: As of now I'll show you the completed build. And what we need to work on now. Ad the future builds so u can code with those in mind when u make the stuff were doing now
+.
+ Completed Foundations (work done):
+
+deterministic VM foundation
+network transport layer
+persistent node identity
+capability reporting
+discovery registry
+scheduler foundation
+frame manifest verification
+
+
+user: What we need to do now:
+
+Secure node enrollment
+Android ARM transport client
+Multi-node simulation tests
+Workload manifest definitions
+Scheduler improvements
+Production deployment tooling
+
+
+Long Term
+distributed device federation
+hardware acceleration support
+large-scale node management
+
+If you need to get familiar with the code you can read the .md files in the repo first. 
+  When we start let's do development passes. After each pass we need to update the documents. Keep 
+Everything changed and all progress documented and.easy to understand for any other agents I have work on the repo.
+___________
+
+Summary
+___________
+pass #1
+
+Established the six ordered development passes—secure enrollment, Android ARM transport, multi-node simulation, workload manifests, scheduler improvements, and production deployment—with measurable completion gates. Long-term federation, hardware acceleration, and fleet-management requirements are now recorded as design constraints. 
+
+Added a mandatory development workflow requiring pre-change simulations, baseline comparisons, security review, and synchronized documentation after every pass. 
+
+Replaced the outdated backlog with an actionable secure-enrollment plan and documented blockers, including the zdx_node import collision, missing scheduler module, authentication-test drift, undeclared dependencies, overlapping implementations, and persistence hardening. 
+
+Added a complete repository review covering test results, integration conflicts, security limitations, Android and manifest readiness, and file-backed persistence risks. No relational or server database implementation was found; current durable state uses JSON and PNG files. 
+
+Documented potential commercial opportunities for ZDX, including a managed fleet control plane, verified compute marketplace, enterprise deployment/support, hardware optimization packages, and federation gateways. 
+
+Expanded testing expectations with deterministic failure scenarios and 3-node, 25-node, and 100+-node simulation tiers. 
+
+Removed tracked Python cache artifacts, added generated-file exclusions, corrected the changelog’s Markdown wrapper, and recorded this planning/baseline pass. 
+
+Committed the completed pass as f64316d and created the pull request metadata titled “Establish ZDX development passes and verified repository baseline.”
+
+Testing
+
+✅ python -m compileall -q .
+
+✅ python -m pytest -q test_vm.py test_registry.py test_server.py test_sync.py tests/test_zdx_enrollment.py tests/test_zdx_protocol.py zdx_node/identity_test.py — 80 tests passed.
+
+⚠️ python -m pytest -q — collection remains blocked by the pre-existing zdx_node.py/zdx_node/ import collision and missing zdx_scheduler module; both are documented in the baseline review. 
+
+✅ git diff --check
+
+✅ git status --short --branch — clean working tree after commit.
+
+
+Files (16)
+Can we fix these? zdx_node import collision, missing scheduler module, authentication-test drift, undeclared dependencies, overlapping implementations, and persistence hardening.
+Copy
+Let's fix these before we move on to new passes. zdx_node import collision, missing scheduler module, authentication-test drift, undeclared dependencies, overlapping implementations, and persistence hardening.
+Copy
+Summary
+Resolved the zdx_node.py/zdx_node/ collision by moving the existing network-node implementation into the package and exposing ZDXNode, NodeIdentity, and ZDXNodeAgent through one canonical API. 
+
+Added the missing canonical ZDXScheduler, including capability validation, accelerator/CPU ranking, deterministic tie-breaking, and safe empty-scheduler behavior. 
+
+Corrected the authentication callback-order drift and added an end-to-end test that signs and authenticates a message with a real Ed25519 key instead of a placeholder signature. 
+
+Added installable runtime, development, Python-version, and isolated-build dependency declarations. Root-level modules are now included in package discovery rather than being omitted from installations. 
+
+Added shared hardened JSON persistence with:
+
+a 4 MiB default read limit,
+
+UTF-8 and malformed-JSON handling,
+
+domain validation hooks,
+
+same-directory temporary files,
+
+file and directory fsync,
+
+atomic replacement,
+
+0600 permissions,
+
+temporary-file cleanup. 
+
+Applied the hardened persistence path to node identities, cryptographic keys, node state, VM shared state, karma state, and pixel-store indexes. Added tests for atomic replacement, permissions, corrupt JSON, oversized JSON, schema rejection, and restart-stable identity. 
+
+Documented canonical ownership for the overlapping node, identity, authentication, scheduler, transport, and persistence implementations. Compatibility paths remain available to avoid silently breaking current callers. 
+
+Defined the current persistence concurrency rule as one writer per state file and documented that multi-writer services must add explicit locking or transactional storage. 
+
+Updated the roadmap, TODO, changelog, test plan, and repository review. All requested baseline blockers are now resolved, with schema migrations and transactional multi-writer persistence retained as explicit production work. 
+
+Completed the code/database review. No SQL database, ORM, server database, or migration engine currently exists; durable state remains JSON and PNG based. Remaining risks include schema migrations, corruption quarantine/recovery, atomic PNG publication, backup/restore testing, and multi-process transactions. 
+
+Recorded additional commercial opportunities: managed enrollment/fleet control, signed audit exports, compliance and recovery packages, deterministic placement analytics, and a managed transactional fleet-state backend. These require enrollment, tenancy, migration, observability, and security gates before production marketing. 
+
+Committed the work on the current branch as a38f617 (fix: restore and harden foundation integrations) and created the pull request metadata titled “Repair foundation imports, scheduling, authentication, packaging, and persistence.”
+
+Testing
+
+✅ python -m compileall -q .
+
+✅ python -m pytest -q — 117 tests passed.
+
+✅ python -m pytest -q tests/test_zdx_simulation.py tests/test_zdx_foundation_repairs.py — 8 focused scheduler, authentication, import, and persistence tests passed.
+
+✅ python - <<'PY' ... PY — deterministic 3-node, 25-node, and 100-node simulations passed.
+
+✅ python setup.py --name --version — returned open-pyxel version 1.0.0.
+
+✅ python -m pip wheel --no-deps --wheel-dir "$tmpdir" . — isolated wheel build completed successfully.
+
+✅ git diff --check
+
+✅ git status --short --branch — clean working tree after commit.
+
+
+Files (32)
+
+
+
+
+
+
+
+
+____________________
+build pass #2 codex
+____________________
+
+
+user: Ok merge the repo after every completed task please.  And continue work on the next needed development in the TODO
+
+
+
+________________
+Summary
+________________
+
+Replaced the caller-trusted, in-memory enrollment placeholder with a versioned persistent enrollment service. Requests now bind the node ID, Ed25519 public key, capabilities, timestamp, and nonce into a canonical signed payload. 
+
+Added strict request validation covering exact schemas, supported versions, identifier and key limits, canonical JSON serialization, a 32 KiB payload limit, a five-minute timestamp window, nonce limits, PEM parsing, Ed25519 key enforcement, base64 validation, and cryptographic verification. 
+
+Added persistent replay protection and blocked identities with existing enrollment records from silently replacing their enrolled keys. Authorized key rotation remains a separate future workflow. 
+
+Added authority-controlled approval, denial, revocation, expiration, optional approval TTLs, and explicit lifecycle-transition enforcement. Revocation is terminal. 
+
+Hardened enrollment-state loading so unsupported schema versions, invalid statuses, malformed node records, and invalid nonce records are rejected rather than trusted. 
+
+Upgraded ZDXEnrollmentHandshake to construct and sign requests using the canonical cryptographic node identity. Authority operations use constant-time credential comparison. 
+
+Integrated enrollment with authentication admission through check_status. Pending nodes are rejected before dispatch, while approved nodes are admitted. 
+
+Added simulations for valid enrollment, restart persistence, forged signatures, replayed nonces, stale and oversized requests, unauthorized approval, expiration, denial, revocation, key-replacement attempts, concurrent nonce races, corrupt state, and authentication admission. 
+
+Added a complete enrollment threat model and documented the remaining trust assumptions. Transport encryption, capability attestation, discovery admission, scheduler admission, active-session revocation, authority audit logs, and authorized key rotation are intentionally not yet represented as complete. 
+
+Updated the TODO accurately: the secure-enrollment core is complete, while discovery and transport integration plus operator documentation remain open before Pass 1 can close. 
+
+Completed the requested persistence/database review. ZDX still has no transactional database; production fleet enrollment will need migrations, encrypted backups, tamper-evident auditing, tenant RBAC, credential rotation, disaster recovery, and multi-writer transactional storage. 
+
+Identified commercial opportunities around managed enrollment and certificate lifecycle, compliance-grade audit exports, organization policy packages, and hosted fleet identity/recovery. These remain gated on the documented production controls. 
+
+Committed the task as a6aa7c4 (feat: add authenticated enrollment lifecycle) and created the pull request metadata titled “Add authenticated persistent node enrollment lifecycle.”
+
+The repository has no configured Git remote or target integration branch, so a server-side merge could not be executed from this environment. The task is committed and its PR metadata is prepared; I will continue using one commit and pull request per completed task.
+
+
+________________
+Testing
+________________
+
+✅ python -m compileall -q .
+
+✅ python -m pytest -q tests/test_zdx_enrollment.py — 8 secure-enrollment tests passed.
+
+✅ python -m pytest -q — 124 tests passed.
+
+✅ python - <<'PY' ... PY — signed enrollment, approval, persistence, and restart simulations passed at 3, 25, and 100 nodes.
+
+✅ git diff --check
+
+✅ git status --short --branch — clean working tree after commit.
+
+
+Files (37)
+Ok finish pass 1. And move on to pass 2. Complete production grade professional code. Reflect over the files you create or have created and improve them if possible.
+Copy
+Summary
+Pass 1 — Secure Node Enrollment
+
+Completed Pass 1 by introducing an admission controller that verifies canonical authenticated envelopes before allowing access to discovery, scheduling, or stateful transport operations. Identity, protocol version, timestamp, sequence, action, and payload are all covered by the Ed25519 signature. 
+
+Added enrollment-gated discovery announcements and scheduler registration. Pending, expired, denied, revoked, forged, stale, or replaying nodes cannot use these admission paths. 
+
+Added authority-controlled key rotation that requires valid signatures from both the currently enrolled key and the proposed replacement key. Successful rotation updates the fingerprint, version, and rotation timestamp atomically. 
+
+Added optional secure-mode server handling. When an admission controller is configured, legacy plaintext identity messages are rejected and only authenticated envelopes are processed. Legacy behavior remains available for existing local integrations when secure mode is not configured. 
+
+Added optional TLS wrapping to the desktop server, allowing secure enrollment admission to operate over an encrypted transport. 
+
+Added professional operator documentation covering authority-secret handling, approval, denial, revocation, dual-proof rotation, encrypted backups, recovery, the single-writer limitation, and incident response. 
+
+Updated the TODO to record all Pass 1 requirements as complete. 
+
+Committed Pass 1 separately as e4d8989 (feat: complete secure enrollment pass) and created the PR metadata titled “Complete Pass 1 secure enrollment admission and key rotation.”
+
+Pass 2 — Android ARM Transport
+Started Pass 2 with a real Gradle multi-module project containing an Android application and a separately testable pure Kotlin protocol module. The supported baseline is Android 13/API 33+, API 35 compilation, JVM 17, ARM64, TLS 1.2/1.3, and Android Keystore Ed25519. 
+
+Added a non-exportable Android Keystore Ed25519 identity. Node identifiers are derived from the public-key digest rather than deprecated hardware serial identifiers. 
+
+Added hostname-verified TLS transport with system trust-store validation, explicit TLS 1.2/1.3 protocol selection, connection/read timeouts, bounded framing, synchronized exchanges, and deterministic resource cleanup. 
+
+Added a Compose operator dashboard and foreground service shell. Compute participation is conservatively limited to validated Wi-Fi while charging and below severe thermal status; light participation still requires a validated network. 
+
+Disabled cleartext Android traffic, made the service non-exported, and added static compatibility/security checks for manifest policy, transport framing, TLS hostname verification, SDK targets, and Keystore identity.
+
+Added certificate-verified desktop TLS interoperability coverage using a temporary locally generated CA certificate and enrolled authenticated node.
+
+Reflected critically on the Android implementation and did not mark Pass 2 complete. Remaining gates include Android-side enrollment/authenticated-envelope orchestration, golden protocol vectors, reconnect and heartbeat workers, verified frame-manifest synchronization, endpoint and fingerprint UX, SDK 35 APK builds, emulator and physical ARM testing, release signing, SBOM generation, and dependency scanning. 
+
+Committed the Pass 2 increment separately as ff45488 (feat: start Android ARM secure transport pass) and created the PR metadata titled “Start Pass 2 Android ARM secure transport application.”
+
+Review Findings and Commercial Opportunities
+The Android source previously lacked build metadata, transport, foreground notifications, and operator controls, and it used a deprecated hardware identifier. Those immediate architecture and privacy problems are now addressed. 
+
+No new server or relational database was added. Production fleet telemetry still requires tenant isolation, explicit consent, retention and deletion controls, regional compliance, transactional storage, and auditable migrations. 
+
+Potential commercial offerings include:
+
+managed Android fleet enrollment and certificate lifecycle,
+
+enterprise private-CA onboarding,
+
+consent-based battery and thermal fleet analytics,
+
+certified device capability profiles,
+
+compliance-grade audit and recovery services,
+
+managed Play Store or enterprise private-store distribution.
+These should remain gated on completion of the Android security, privacy, hardware-validation, and release requirements. 
+
+Testing
+
+✅ python -m compileall -q .
+
+✅ python -m pytest -q — 132 tests passed after both task commits.
+
+✅ python -m pytest -q tests/test_zdx_enrollment.py tests/test_zdx_admission.py — enrollment, key-rotation, discovery, scheduler, tamper, replay, and revocation checks passed.
+
+✅ python -m pytest -q test_server.py — legacy, secure-admission, and certificate-verified TLS server tests passed.
+
+✅ python -m pytest -q test_server.py tests/test_android_project.py — 6 Android compatibility and TLS interoperability checks passed.
+
+✅ python - <<'PY' ... PY — enrolled discovery and scheduling simulations passed at 3, 25, and 100 nodes.
+
+✅ git diff --check
+
+⚠️ cd android && gradle :protocol:test — Gradle and Java are installed, but dependency resolution left detached Gradle daemons and produced no test report in this environment; the processes and generated state were removed.
+
+⚠️ cd android && gradle :app:assembleDebug — not run because the OpenAI environment does not provide Android SDK platform/build-tools 35. The APK and physical-device exit gates remain explicitly open.
+
+✅ git status --short --branch — clean working tree after both commits.
+
+
+Files (63)
+
+.gitignore
+.gitignore
+New
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++28
+-0
+
+CHANGELOG.md
+CHANGELOG.md
++78
+-2
+
+DEVELOPMENT_STATUS.md
+DEVELOPMENT_STATUS.md
+New
+
+ROADMAP.md
+ROADMAP.md
++101
+-10
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++55
+-13
+
+TEST_PLAN.md
+TEST_PLAN.md
++53
+-0
+
+TODO.md
+TODO.md
++65
+-238
+
+ZDX_BUILD_PROCESS.md
+ZDX_BUILD_PROCESS.md
++29
+-0
+
+ZDX_ENROLLMENT.md
+ZDX_ENROLLMENT.md
+New
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++32
+-0
+
+pyxel_registry.cpython-312.pyc
+__pycache__/pyxel_registry.cpython-312.pyc
+
+test_registry.cpython-312-pytest-9.0.2.pyc
+__pycache__/test_registry.cpython-312-pytest-9.0.2.pyc
+
+test_vm.cpython-312-pytest-9.0.2.pyc
+__pycache__/test_vm.cpython-312-pytest-9.0.2.pyc
+
+zdx_agent_runtime.cpython-312.pyc
+__pycache__/zdx_agent_runtime.cpython-312.pyc
+
+zdx_parallel_vm.cpython-312.pyc
+__pycache__/zdx_parallel_vm.cpython-312.pyc
+
+.gitignore
+android/.gitignore
+New
+
+ANDROID_BUILD.md
+android/ANDROID_BUILD.md
++32
+-37
+
+README.md
+android/README.md
++27
+-49
+
+build.gradle.kts
+android/app/build.gradle.kts
+New
+
+proguard-rules.pro
+android/app/proguard-rules.pro
+New
+
+AndroidManifest.xml
+android/app/src/main/AndroidManifest.xml
+New
+
+DeviceCapabilityCollector.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/DeviceCapabilityCollector.kt
++5
+-2
+
+MainActivity.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/MainActivity.kt
+New
+
+NodeService.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/NodeService.kt
++27
+-13
+
+AndroidNodeIdentity.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/security/AndroidNodeIdentity.kt
+New
+
+ZdxTlsTransport.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/transport/ZdxTlsTransport.kt
+New
+
+styles.xml
+android/app/src/main/res/values/styles.xml
+New
+
+network_security_config.xml
+android/app/src/main/res/xml/network_security_config.xml
+New
+
+build.gradle.kts
+android/build.gradle.kts
+New
+
+gradle.properties
+android/gradle.properties
+New
+
+build.gradle.kts
+android/protocol/build.gradle.kts
+New
+
+ZdxFrameCodec.kt
+android/protocol/src/main/kotlin/com/zerodrivex/zdxnode/protocol/ZdxFrameCodec.kt
+New
+
+ZdxFrameCodecTest.kt
+android/protocol/src/test/kotlin/com/zerodrivex/zdxnode/protocol/ZdxFrameCodecTest.kt
+New
+
+settings.gradle.kts
+android/settings.gradle.kts
+New
+
+pyproject.toml
+pyproject.toml
+New
+
+setup.py
+setup.py
++6
+-1
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++2
+-2
+
+test_server.py
+test_server.py
++61
+-0
+
+test_android_project.py
+tests/test_android_project.py
+New
+
+test_zdx_admission.py
+tests/test_zdx_admission.py
+New
+
+test_zdx_enrollment.py
+tests/test_zdx_enrollment.py
++174
+-7
+
+test_zdx_foundation_repairs.py
+tests/test_zdx_foundation_repairs.py
+New
+
+zdx_admission.py
+zdx_admission.py
+New
+
+zdx_android_client.py
+zdx_android_client.py
++18
+-18
+
+zdx_ed25519_signer.py
+zdx_ed25519_signer.py
++14
+-3
+
+zdx_enrollment.py
+zdx_enrollment.py
++261
+-20
+
+zdx_enrollment_handshake.py
+zdx_enrollment_handshake.py
++86
+-16
+
+zdx_karma_system.py
+zdx_karma_system.py
++6
+-5
+
+__init__.py
+zdx_node/__init__.py
++4
+-2
+
+identity.py
+zdx_node/identity.py
++5
+-4
+
+network.py
+zdx_node.py → zdx_node/network.py
+
+zdx_node_identity.py
+zdx_node_identity.py
++11
+-4
+
+zdx_parallel_vm.py
+zdx_parallel_vm.py
++6
+-4
+
+zdx_persistence.py
+zdx_persistence.py
+New
+
+__init__.cpython-312.pyc
+zdx_pixel_memory/__pycache__/__init__.cpython-312.pyc
+
+agent_memory.cpython-312.pyc
+zdx_pixel_memory/__pycache__/agent_memory.cpython-312.pyc
+
+codec.cpython-312.pyc
+zdx_pixel_memory/__pycache__/codec.cpython-312.pyc
+
+store.cpython-312.pyc
+zdx_pixel_memory/__pycache__/store.cpython-312.pyc
+
+store.py
+zdx_pixel_memory/store.py
++4
+-6
+
+zdx_scheduler.py
+zdx_scheduler.py
+New
+
+zdx_server.py
+zdx_server.py
++26
+-3
+
+zdx_state.py
+zdx_state.py
++4
+-4
