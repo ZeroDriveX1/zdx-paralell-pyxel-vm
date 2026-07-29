@@ -1,0 +1,77 @@
+ZeroDriveX Parallel Pyxel VM -- Codex Prompt (Pass 5.0)
+
+## Objective
+
+Pass 4 is complete. Begin **Pass 5 -- Consensus, Byzantine Resilience,
+and Distributed State Replication**.
+
+Read before modifying code: - README.md - ARCHITECTURE.md -
+SECURITY_MODEL.md - ROADMAP.md - DEVELOPMENT_STATUS.md - TODO.md -
+ZDX_PROTOCOL.md - NODE_OPERATOR_GUIDE.md
+
+Review every file changed in Passes 1--4.
+
+## Goals
+
+### 1. Coordinator Consensus
+
+Implement a deterministic consensus abstraction: - leader election
+interface - term management - quorum abstraction - log replication API -
+deterministic conflict resolution
+
+Do not hard-code a specific algorithm; keep the interface suitable for
+Raft/Paxos-style implementations.
+
+### 2. Byzantine Verification
+
+Implement: - multi-node execution verification - configurable
+verification thresholds - fraud evidence records - automatic node
+penalties - reputation integration
+
+### 3. Distributed State
+
+Extend replicated scheduler state with: - replicated snapshots -
+cross-coordinator synchronization - state reconciliation - integrity
+validation - deterministic replay after failover
+
+### 4. Federation Routing
+
+Add: - cross-cluster workload routing - coordinator discovery -
+federation health scoring - deterministic routing decisions
+
+### 5. Accelerator Scheduling
+
+Support: - heterogeneous CPU/GPU/NPU scheduling - accelerator
+accounting - reservation policies - deterministic placement
+
+### 6. Security
+
+Implement: - coordinator certificate rotation - federation trust
+updates - signed upgrade metadata - secure state migration
+
+### 7. Scale Testing
+
+Run deterministic simulations for: - 10,000 - 25,000 - 50,000 nodes
+
+Measure: - failover latency - consensus convergence - verification
+accuracy - scheduler throughput - fairness
+
+### 8. Documentation
+
+Update all documentation, changelog, roadmap, development status,
+security model, protocol specification, operator guide and test plan.
+
+### 9. Reflection
+
+Review for: - race conditions - deadlocks - duplicate logic - API
+consistency - determinism - production readiness
+
+### Testing
+
+Run the full repository test suite. Add consensus, federation, failover
+and Byzantine verification tests. Maintain a clean working tree.
+
+Do not begin Pass 6 until all Pass 5 release gates are satisfied.
+
+
+
