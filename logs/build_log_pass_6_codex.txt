@@ -43,4 +43,201 @@ Ubuntu, Windows, and CI.
 Do not begin Pass 8 until all release, build, and versioning gates
 succeed.
 
+worked 8m 36s
+
+Implement versioning strategy for releases
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+
+Conversation
+Diff
+Logs
+
+# ZeroDriveX Parallel Pyxel VM -- Codex Prompt (Pass 7.1)
+
+## Release Candidate + Build System + Versioning
+
+This pass establishes the permanent build, packaging, release, and
+versioning workflow.
+
+## New Requirement: Versioning Starts Here
+
+Implement a formal versioning strategy.
+
+-   Current milestone becomes **v0.7.0** (Pass 7 baseline).
+-   Use Semantic Versioning (MAJOR.MINOR.PATCH).
+-   Automatically generate version information during every build.
+-   Embed the version into:
+    -   Python packages
+    -   Android APK/AAB
+    -   Native binaries
+    -   CLI tools
+    -   Network protocol handshake
+    -   Logs
+    -   Diagnostics
+    -   Release manifests
+
+Generate: - VERSION file - build.json - version.json - CHANGELOG
+updates - Git tag support - Release notes
+
+Every build must include: - Git commit - Branch - Build timestamp -
+Build host - Dirty/clean repository state
+
+## Unified Build Pipeline
+
+A single command should: - validate environment - run tests - build
+Python - build native binaries - build Android APK/AAB - generate
+checksums - generate SBOM - package release artifacts - verify outputs
+
+Create a `zdx doctor` command that validates SDKs, Java, Gradle, Python,
+Android SDK/NDK, and required tooling before building.
+
+Repository must be reproducibly buildable from Ubuntu, Termux+proot
+Ubuntu, Windows, and CI.
+
+Do not begin Pass 8 until all release, build, and versioning gates
+succeed.
+Copy
+Summary
+Established v0.7.0 as the Semantic Versioning baseline, with centralized version discovery and build provenance covering the Git commit, branch, timestamp, host, platform, and repository state. 
+
+Added a unified release pipeline that validates the environment, runs tests, builds Python distributions and native extensions, optionally gates Android APK/AAB builds, packages artifacts, generates a CycloneDX SBOM and SHA-256 checksums, and verifies the resulting manifest. 
+
+Added zdx doctor diagnostics for Python, Git, Java, Gradle, the C compiler, Python build dependencies, SBOM tooling, and Android SDK/NDK availability. 
+
+Embedded version and provenance metadata into Python packaging, the installed CLI, generated native headers, Android version properties, network protocol envelopes, and release manifests. 
+
+Added changelog entries, release notes, reproducible-build guidance, and signed Git tag instructions for v0.7.0. 
+
+Restored the canonical ZDXNode compatibility API and deterministic capability-aware scheduler, resolving the repository’s prior test-collection blockers. 
+
+Added regression coverage for Semantic Versioning, protocol compatibility, deterministic timestamps, and required provenance fields. 
+
+Completed commit e0c9ab8 (build: establish v0.7.0 release workflow) and created the pull request metadata titled “Establish the v0.7.0 release, build, and versioning workflow.”
+
+Testing
+
+✅ python3 -m pytest -q — 113 tests passed.
+
+✅ ./build.sh — completed the complete non-Android release gate, including tests, Python packages, native binaries, archive generation, CycloneDX SBOM, checksums, manifest generation, and output verification.
+
+✅ ./build.sh --skip-tests — validated the development-only packaging path.
+
+✅ python3 -m pytest -q tests/test_versioning.py tests/test_zdx_protocol.py — 3 focused versioning and protocol tests passed.
+
+✅ python3 -m compileall -q zdx_build.py zdx_doctor.py zdx_version.py zdx_cli.py zdx_protocol.py
+
+✅ python3 zdx_cli.py --version — reported ZDX v0.7.0 with commit and repository state.
+
+✅ python3 zdx_cli.py doctor --json — all required host checks passed.
+
+✅ git diff --check
+
+✅ git status --short --branch — clean working tree after commit.
+
+⚠️ ./build.sh --android was not run because this repository currently has no Android Gradle wrapper/project and the environment has no configured Android SDK/NDK. The new Android gate deliberately fails instead of publishing a partial mobile release. 
+
+Review Findings and Opportunities
+The Android directory currently provides version metadata and documentation but still needs the actual Gradle application/library project before APK/AAB production can succeed. The pipeline is prepared to enforce that future gate.
+
+The build still uses direct setup.py commands, which produce a setuptools deprecation warning. A future improvement should migrate to pyproject.toml with PEP 517 builds while preserving the Cython extension configuration.
+
+The generated SBOM currently describes the release component but does not enumerate dependency components. Integrating cyclonedx-py output into the manifest would improve enterprise procurement, vulnerability management, and compliance value.
+
+Commercially valuable next services include signed release provenance/attestations, managed fleet diagnostics based on zdx doctor --json, enterprise SBOM and vulnerability reporting, hosted reproducible-build verification, and managed Android release signing. These could support enterprise subscriptions and compliance-oriented offerings once Android, signing, tenancy, and security gates are complete.
+
+
+Files (20)
+
+.gitignore
+.gitignore
+New
+
+CHANGELOG.md
+CHANGELOG.md
++11
+-0
+
+MANIFEST.in
+MANIFEST.in
+New
+
+README.md
+README.md
++17
+-0
+
+RELEASE_NOTES.md
+RELEASE_NOTES.md
+New
+
+VERSION
+VERSION
+New
+
+version.properties
+android/version.properties
+New
+
+build.json
+build.json
+New
+
+build.sh
+build.sh
++3
+-60
+
+setup.py
+setup.py
++10
+-1
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++1
+-1
+
+test_versioning.py
+tests/test_versioning.py
+New
+
+version.json
+version.json
+New
+
+zdx_build.py
+zdx_build.py
+New
+
+zdx_cli.py
+zdx_cli.py
++10
+-0
+
+zdx_doctor.py
+zdx_doctor.py
+New
+
+__init__.py
+zdx_node/__init__.py
++24
+-2
+
+zdx_protocol.py
+zdx_protocol.py
++8
+-1
+
+zdx_scheduler.py
+zdx_scheduler.py
+New
+
+zdx_version.py
+zdx_version.py
+New
+
+
+
 
