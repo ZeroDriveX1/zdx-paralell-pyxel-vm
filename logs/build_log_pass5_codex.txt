@@ -80,3 +80,245 @@ performance improvements
 Do not begin Pass 7 until every Pass 6 release gate is satisfied.
 
 
+
+worked 8m 35s
+
+
+Update TODO.md with latest modifications
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+
+Conversation
+Diff
+Logs
+
+You haven't updated the TODO.md make sure as you check things off you also updated the TODO.md file. Here is the next prompt. 
+
+# ZeroDriveX Parallel Pyxel VM -- Codex Prompt (Pass 6.0)
+
+## Mission
+
+Pass 5 is complete. Pass 6 is the production-hardening milestone.
+
+Read completely before modifying code: - README.md - ARCHITECTURE.md -
+SECURITY_MODEL.md - ROADMAP.md - DEVELOPMENT_STATUS.md - TODO.md (treat
+as authoritative) - CHANGELOG.md - TEST_PLAN.md - ZDX_PROTOCOL.md -
+NODE_OPERATOR_GUIDE.md
+
+Review every file modified in Passes 1--5 before writing code.
+
+## Engineering Rules
+
+-   Production quality only.
+-   No placeholders, TODO implementations, duplicated logic,
+    compatibility shims, dead code, or mock behavior.
+-   Improve existing code before adding new code when appropriate.
+-   Prefer deterministic behavior over cleverness.
+-   Keep APIs minimal, consistent, documented, and backwards compatible
+    where reasonable.
+-   If a subsystem can be simplified without reducing capability,
+    refactor it.
+
+## Pass 6 Objectives
+
+### 1. End-to-End Production Node
+
+Complete a real node capable of: - joining a federation - executing
+workloads - recovering after crashes - surviving coordinator failover -
+rotating certificates - restoring from backup - operating continuously
+
+### 2. Storage Hardening
+
+Implement durable storage: - transactional persistence - integrity
+verification - corruption repair where safe - encrypted state at rest -
+migration validation
+
+### 3. Hardware Security
+
+Support: - HSM / TPM abstraction - Android Keystore - secure key export
+policy - hardware-backed signing interface
+
+### 4. Chaos & Reliability
+
+Create deterministic chaos tests: - coordinator crashes - node crashes -
+partitions - clock skew - packet loss - delayed messages - duplicate
+delivery - storage corruption - recovery validation
+
+### 5. Performance
+
+Profile the system. Reduce allocations. Remove bottlenecks. Improve
+scheduler scalability without sacrificing determinism.
+
+### 6. Reflection (Required)
+
+Review every modified file and explicitly document: - duplicated logic
+removed - unnecessary abstractions removed - race conditions found or
+ruled out - lock ordering - deadlock analysis - memory lifetime - API
+consistency - security assumptions - deterministic guarantees - future
+technical debt - lessons learned
+
+If an implementation can be reduced by 30% while preserving behavior,
+refactor it.
+
+### 7. Documentation
+
+Synchronize every document with reality. Remove obsolete documentation.
+Document every production limitation still remaining.
+
+### 8. Testing
+
+Run: - full pytest - compileall - deterministic simulation suite - chaos
+suite - long-duration stability tests - coverage
+
+Report: - production readiness - remaining blockers - measurable
+performance improvements
+
+Do not begin Pass 7 until every Pass 6 release gate is satisfied.
+Copy
+Summary
+Added transactional encrypted local persistence using AES-GCM, bounded canonical state documents, integrity verification, restrictive permissions, atomic replacement, directory synchronization, authenticated backup repair, and explicit schema migration. 
+
+Added a durable production-node lifecycle supporting deterministic federation joining and coordinator failover, persistent workload assignment, crash recovery, idempotent results, hardware-backed certificate-rotation proofs, and encrypted backup/restore. 
+
+Added minimal HSM/TPM and Android Keystore signing boundaries with fail-closed private-key export policy and validation of provider signatures. 
+
+Added seeded deterministic chaos simulation for partitions, packet loss, duplicate delivery, delays, and clock skew. 
+
+Added Pass 6 tests covering encrypted storage, corruption repair, fail-closed recovery, migration, node crash recovery, coordinator failover, certificate rotation, backup/restore, non-exportable keys, and deterministic chaos behavior. 
+
+Restored the missing canonical ZDXNode package export and deterministic capability-aware scheduler, resolving the initial full-suite collection failures.
+
+Updated TODO.md as requested, checking off only work validated in this pass and explicitly retaining the incomplete production gates. Pass 7 remains blocked. 
+
+Synchronized architecture, security, roadmap, protocol, testing, development-status, operator, README, and changelog documentation. The reflection records removed duplication, lock ordering, deadlock analysis, memory lifetime, API consistency, security assumptions, deterministic guarantees, and future debt. 
+
+Completed the code and persistence review. The repository has no SQL database, ORM, or external database; legacy JSON/PNG state remains plaintext, while the new node state uses encrypted binary persistence. Cross-process writers are not yet supported. 
+
+Identified potential commercial services including managed encrypted fleet backups, recovery drills, enterprise HSM certificate lifecycle, SLA-backed failover telemetry, verified compute, and hardware-attestation tiers. 
+
+Pass 6 remains in progress, not production-ready. Remaining blockers include certified hardware providers, physical Android validation, deployed mTLS/consensus, multi-process transactions, multi-host chaos testing, a 72-hour hardware soak, supply-chain controls, and independent security acceptance. 
+
+Committed the changes as 637d2e7 (feat: harden production node storage and recovery) and created the pull request metadata titled “Pass 6: harden node durability, recovery, and hardware signing.”
+
+Testing
+
+⚠️ python -m pytest -q (pre-change baseline: collection failed because Pillow and cryptography were unavailable, zdx_scheduler was missing, and the package-level ZDXNode export was absent)
+
+✅ python -m pytest -q — 117 tests passed.
+
+✅ python -m compileall -q --invalidation-mode checked-hash $(find . -path './.git' -prune -o -name '*.py' -print)
+
+✅ python -m pytest --cov=zdx_secure_storage --cov=zdx_hardware_security --cov=zdx_production_node --cov=zdx_chaos --cov-report=term-missing -q tests/test_pass6.py — 6 tests passed; Pass 6 modules measured 92% coverage.
+
+✅ python - <<'PY' ... PY — deterministic 10,000-message chaos simulation reproduced exactly, producing 10,231 delayed/duplicated deliveries while excluding partitioned traffic.
+
+✅ python - <<'PY' ... PY — bounded stability run completed 100 durable workloads across 10 node restarts in 1.509 seconds, measuring 66.3 workloads/second.
+
+⚠️ python setup.py --name --version — initially blocked because the environment lacked setuptools; after installing the declared build tooling, it returned open-pyxel version 1.0.0.
+
+✅ git diff --check
+
+✅ git status --short --branch — clean working tree on branch work after commit.
+
+
+Files (21)
+
+.gitignore
+.gitignore
+New
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++9
+-65
+
+CHANGELOG.md
+CHANGELOG.md
++14
+-0
+
+DEVELOPMENT_STATUS.md
+DEVELOPMENT_STATUS.md
+New
+
+NODE_OPERATOR_GUIDE.md
+NODE_OPERATOR_GUIDE.md
+New
+
+README.md
+README.md
++4
+-0
+
+ROADMAP.md
+ROADMAP.md
++5
+-21
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++8
+-20
+
+TEST_PLAN.md
+TEST_PLAN.md
++8
+-17
+
+TODO.md
+TODO.md
++36
+-238
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++1
+-8
+
+setup.py
+setup.py
++6
+-0
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++1
+-1
+
+test_pass6.py
+tests/test_pass6.py
+New
+
+zdx_chaos.py
+zdx_chaos.py
+New
+
+zdx_hardware_security.py
+zdx_hardware_security.py
+New
+
+__init__.py
+zdx_node/__init__.py
++2
+-1
+
+network_node.py
+zdx_node/network_node.py
+New
+
+zdx_production_node.py
+zdx_production_node.py
+New
+
+zdx_scheduler.py
+zdx_scheduler.py
+New
+
+zdx_secure_storage.py
+zdx_secure_storage.py
+New
+
+
+
+
