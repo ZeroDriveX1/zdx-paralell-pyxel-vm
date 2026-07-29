@@ -1,0 +1,461 @@
+ZeroDriveX1/zdx-paralell-pyxel-vm
+_____________
+pass 2c Codex 
+_____________
+
+User:
+Codex Prompt – Pass 2.c (Production Android Integration)
+You are continuing development of the ZeroDriveX Parallel Pyxel VM.
+Read the repository documentation first before making changes.
+Priority order:
+README
+ARCHITECTURE.md
+SECURITY_MODEL.md
+ROADMAP.md
+TODO.md
+DEVELOPMENT_STATUS.md
+ZDX_PROTOCOL.md
+ZDX_ENROLLMENT.md
+NODE_OPERATOR_GUIDE.md
+Review every file modified during previous passes before changing anything.
+Your goal is production-quality code, not feature count.
+Do not create shortcuts, placeholders, TODO implementations, mock networking, or duplicated code.
+Reflect on every subsystem before modifying it and improve existing implementations where appropriate.
+PASS 2.c Objective
+Finish Android Transport Integration.
+The Android client should become a fully authenticated production node capable of joining a real ZDX cluster.
+Everything should remain deterministic.
+Complete the remaining Pass 2 requirements
+1. Enrollment Integration
+Complete Android-side enrollment.
+Implement:
+authenticated enrollment workflow
+approval polling
+enrollment persistence
+automatic recovery after restart
+rejected enrollment handling
+revoked enrollment handling
+expired enrollment handling
+dual-key rotation compatibility
+No duplicate enrollment logic.
+Reuse existing Python protocol design wherever possible.
+2. Authenticated Network Protocol
+Replace any remaining placeholder transport.
+Every outbound frame must contain:
+protocol version
+node id
+sequence number
+timestamp
+action
+payload
+signature
+Every inbound frame must validate:
+protocol version
+timestamp window
+replay protection
+enrollment status
+Ed25519 signature
+payload integrity
+Reject before allocating work.
+3. Heartbeat System
+Implement deterministic heartbeat workers.
+Heartbeat includes
+CPU
+RAM
+battery
+thermal state
+accelerator availability
+workload capacity
+latency
+uptime
+VM version
+Heartbeat frequency should be configurable.
+Missed heartbeats should transition:
+Healthy
+↓
+Warning
+↓
+Offline
+↓
+Removed
+4. Automatic Reconnect
+Implement production reconnect.
+Requirements:
+exponential backoff
+jitter
+maximum retry limits
+reconnect state machine
+session recovery
+graceful shutdown
+transport cleanup
+Never create duplicate sessions.
+5. Frame Manifest Synchronization
+Implement verified manifest synchronization.
+Requirements:
+manifest hash verification
+version comparison
+delta synchronization
+integrity validation
+corruption rejection
+deterministic ordering
+No partial state updates.
+6. Android Operator UX
+Complete operator dashboard.
+Display:
+Enrollment status
+Transport status
+TLS status
+Node ID
+Fingerprint
+Capabilities
+Current scheduler assignment
+Heartbeat age
+Connected peers
+Current workload
+Battery
+Temperature
+Logs
+No debug-only UI.
+Professional appearance.
+7. TLS Improvements
+Review TLS implementation.
+Improve:
+certificate validation
+hostname validation
+timeouts
+session reuse
+connection pooling
+certificate pinning support
+future mutual TLS compatibility
+Do not reduce security.
+8. Protocol Test Vectors
+Generate golden protocol vectors.
+Create deterministic tests covering
+authenticated frames
+tampered payloads
+expired timestamps
+replayed sequences
+incorrect signatures
+wrong protocol versions
+corrupted manifests
+key rotation
+revocation
+restart recovery
+Every vector must be reusable by future desktop, Android, Linux and server implementations.
+9. Multi-node Simulation
+Expand simulations.
+Run
+3 nodes
+25 nodes
+100 nodes
+250 nodes
+500 nodes
+Verify
+scheduler stability
+heartbeat behavior
+disconnect recovery
+authentication
+manifest sync
+deterministic workload placement
+Record timing statistics.
+10. Documentation
+Update ALL documentation.
+Required:
+README
+ROADMAP
+CHANGELOG
+TODO
+SECURITY_MODEL
+ARCHITECTURE
+ANDROID_BUILD
+NODE_OPERATOR_GUIDE
+DEVELOPMENT_STATUS
+TEST_PLAN
+Every new subsystem must be documented.
+Remove obsolete documentation.
+11. Reflection
+Before committing:
+Review every file changed.
+Identify
+duplicate logic
+unused code
+security weaknesses
+race conditions
+memory leaks
+thread safety
+performance improvements
+API cleanup
+Refactor where appropriate.
+Do not leave technical debt.
+12. Testing
+Run every available test except Android SDK compilation.
+Run:
+python -m compileall
+full pytest
+focused Android compatibility tests
+protocol tests
+authentication tests
+simulation tests
+coverage where appropriate
+Report
+tests passed
+coverage
+remaining blockers
+production readiness
+Commit Rules
+One logical task per commit.
+Create PR metadata.
+Update CHANGELOG.
+Update DEVELOPMENT_STATUS.
+Update TODO.
+Maintain a clean working tree.
+Success Criteria
+Pass 2 is complete only when an Android ARM device can:
+generate a hardware-backed identity
+enroll with the authority
+authenticate every frame
+reconnect automatically
+maintain heartbeats
+synchronize manifests
+securely communicate over TLS
+participate in deterministic scheduling
+survive restart
+pass all non-SDK tests
+have complete operator documentation
+Do not begin Pass 3 until every Pass 2 completion gate is satisfied.
+This prompt keeps Codex focused on closing Pass 2 completely before expanding into scheduler and federation work, which will reduce rework in later passes.
+Copy
+
+
+
+
+
+_____________
+Summary
+_____________
+
+Added a canonical ZDX v1 authenticated-frame implementation covering protocol version, node ID, sequence, timestamp, action, payload digest, key version, and Ed25519 signature. Inbound verification now rejects unsupported versions, invalid timestamps, payload corruption, unknown keys, incorrect signatures, inactive enrollment, and replayed sequences before dispatch. 
+
+Implemented crash-safe enrollment persistence with explicit pending, approved, rejected, revoked, and expired states, automatic expiry after restart, atomic file replacement, and dual-key-version storage. 
+
+Added deterministic heartbeat health transitions, complete heartbeat payload modeling, bounded exponential reconnect with seeded jitter, and transactional manifest synchronization that prevents partial state publication. 
+
+Added Android Keystore-backed persistent identities, versioned key rotation, fingerprint reporting, authenticated enrollment requests, approval polling, restart recovery, and terminal-state handling. 
+
+Added strict Android HTTPS transport with connection/read timeouts, platform hostname and certificate validation, optional SHA-256 certificate pinning, bounded retries, duplicate-session prevention, and deterministic cleanup. 
+
+Added Android heartbeat collection for CPU, available RAM, battery, thermal state, accelerator availability, workload capacity, latency, uptime, and VM version. 
+
+Added the Android operator dashboard with enrollment, transport, TLS, identity, fingerprint, capabilities, assignment, heartbeat, peer, workload, battery, temperature, and log fields. 
+
+Added reusable golden-vector and security tests covering authenticated frames, tampering, expired timestamps, replay, incorrect signatures and versions, enrollment terminal states, rotation, restart recovery, heartbeat transitions, reconnect behavior, corrupt manifests, and TLS pinning. 
+
+Expanded deterministic simulations through 3, 25, 100, 250, and 500 nodes, recording placement, heartbeat transitions, and timing results. 
+
+Updated all required Pass 2.c documentation and explicitly retained Android SDK, physical ARM, authority interoperability, TLS rollover, soak testing, and independent security review as release gates. 
+
+Created three logical commits and prepared PR metadata titled “Complete Pass 2.c authenticated Android transport integration.”
+
+Additional commercial opportunities identified during review include managed enrollment-authority hosting, fleet observability, certificate/key lifecycle management, device qualification, compliance reporting, and enterprise scheduler support. These should remain separate services rather than weakening or duplicating the protocol core.
+
+Testing
+
+✅ python -m compileall -q .
+
+✅ pytest -q — 120 tests passed.
+
+✅ pytest -q tests/test_zdx_transport.py tests/test_zdx_enrollment.py tests/test_zdx_protocol.py test_auth_pipeline.py — 37 focused protocol, enrollment, authentication, and compatibility tests passed.
+
+✅ pytest -q tests/test_zdx_simulation.py — 3 simulation tests passed.
+
+✅ pytest -q --cov=zdx_transport --cov=zdx_simulator --cov-report=term-missing tests/test_zdx_transport.py tests/test_zdx_simulation.py — 11 tests passed with 97% combined transport/simulator coverage.
+
+✅ python - <<'PY' ... ZDXSimulator.run_scale(size) ... PY — deterministic 3, 25, 100, 250, and 500-node runs completed successfully.
+
+✅ git diff --check
+
+✅ git status --short --branch — clean working tree after commits.
+
+⚠️ ./gradlew lint test assembleDebug — not run because Android SDK compilation was explicitly excluded and the repository does not include a pinned Gradle wrapper; SDK/device qualification remains a documented production blocker. 
+
+
+Files (40)
+
+.gitignore
+.gitignore
+New
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++6
+-0
+
+CHANGELOG.md
+CHANGELOG.md
++16
+-0
+
+DEVELOPMENT_STATUS.md
+DEVELOPMENT_STATUS.md
+New
+
+NODE_OPERATOR_GUIDE.md
+NODE_OPERATOR_GUIDE.md
+New
+
+README.md
+README.md
++6
+-0
+
+ROADMAP.md
+ROADMAP.md
++12
+-19
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++6
+-0
+
+TEST_PLAN.md
+TEST_PLAN.md
++7
+-13
+
+TODO.md
+TODO.md
++19
+-238
+
+ZDX_ENROLLMENT.md
+ZDX_ENROLLMENT.md
+New
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++4
+-7
+
+ANDROID_BUILD.md
+android/ANDROID_BUILD.md
++4
+-34
+
+build.gradle.kts
+android/app/build.gradle.kts
+New
+
+AndroidManifest.xml
+android/app/src/main/AndroidManifest.xml
+New
+
+AuthenticatedProtocol.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/AuthenticatedProtocol.kt
+New
+
+EnrollmentRepository.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/EnrollmentRepository.kt
+New
+
+EnrollmentWorkflow.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/EnrollmentWorkflow.kt
+New
+
+HeartbeatCollector.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/HeartbeatCollector.kt
+New
+
+ManifestSynchronizer.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/ManifestSynchronizer.kt
+New
+
+NodeIdentityStore.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/NodeIdentityStore.kt
+New
+
+NodeService.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/NodeService.kt
++11
+-21
+
+OperatorActivity.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/OperatorActivity.kt
+New
+
+SecureTransport.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/SecureTransport.kt
+New
+
+styles.xml
+android/app/src/main/res/values/styles.xml
+New
+
+build.gradle.kts
+android/build.gradle.kts
+New
+
+settings.gradle.kts
+android/settings.gradle.kts
+New
+
+v1.json
+protocol_vectors/v1.json
+New
+
+pytest.ini
+pytest.ini
+New
+
+simulation_results.json
+simulation_results.json
+New
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++1
+-1
+
+test_zdx_simulation.py
+tests/test_zdx_simulation.py
++7
+-0
+
+test_zdx_transport.py
+tests/test_zdx_transport.py
+New
+
+zdx_android_client.py
+zdx_android_client.py
++1
+-1
+
+zdx_enrollment.py
+zdx_enrollment.py
++1
+-1
+
+__init__.py
+zdx_node/__init__.py
++3
+-4
+
+legacy.py
+zdx_node/legacy.py
+New
+
+zdx_scheduler.py
+zdx_scheduler.py
+New
+
+zdx_simulator.py
+zdx_simulator.py
++22
+-28
+
+zdx_transport.py
+zdx_transport.py
+New
+
+
+
