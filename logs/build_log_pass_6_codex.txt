@@ -1,0 +1,46 @@
+# ZeroDriveX Parallel Pyxel VM -- Codex Prompt (Pass 7.1)
+
+## Release Candidate + Build System + Versioning
+
+This pass establishes the permanent build, packaging, release, and
+versioning workflow.
+
+## New Requirement: Versioning Starts Here
+
+Implement a formal versioning strategy.
+
+-   Current milestone becomes **v0.7.0** (Pass 7 baseline).
+-   Use Semantic Versioning (MAJOR.MINOR.PATCH).
+-   Automatically generate version information during every build.
+-   Embed the version into:
+    -   Python packages
+    -   Android APK/AAB
+    -   Native binaries
+    -   CLI tools
+    -   Network protocol handshake
+    -   Logs
+    -   Diagnostics
+    -   Release manifests
+
+Generate: - VERSION file - build.json - version.json - CHANGELOG
+updates - Git tag support - Release notes
+
+Every build must include: - Git commit - Branch - Build timestamp -
+Build host - Dirty/clean repository state
+
+## Unified Build Pipeline
+
+A single command should: - validate environment - run tests - build
+Python - build native binaries - build Android APK/AAB - generate
+checksums - generate SBOM - package release artifacts - verify outputs
+
+Create a `zdx doctor` command that validates SDKs, Java, Gradle, Python,
+Android SDK/NDK, and required tooling before building.
+
+Repository must be reproducibly buildable from Ubuntu, Termux+proot
+Ubuntu, Windows, and CI.
+
+Do not begin Pass 8 until all release, build, and versioning gates
+succeed.
+
+
