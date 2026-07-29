@@ -1,0 +1,247 @@
+
+# ZeroDriveX Parallel Pyxel VM – Codex Prompt (Pass 4.0)
+
+## Objective
+Pass 3 is complete. Begin Pass 4 – Distributed Federation, Reliability, and Production Operations.
+
+Before writing code:
+- Read README.md
+- ARCHITECTURE.md
+- SECURITY_MODEL.md
+- ROADMAP.md
+- DEVELOPMENT_STATUS.md
+- TODO.md
+- ZDX_PROTOCOL.md
+- NODE_OPERATOR_GUIDE.md
+
+Review all files modified in Passes 1–3 before changing code.
+
+## Goals
+
+### 1. Federation Layer
+Implement multi-coordinator federation:
+- federation identity
+- cluster peering
+- authenticated federation handshake
+- signed federation announcements
+- version negotiation
+- capability advertisement
+- trust boundaries
+
+### 2. Lease-Based Scheduling
+Replace transient assignments with production leases.
+Implement:
+- lease IDs
+- renewal
+- expiration
+- crash recovery
+- reassignment
+- deterministic lease ownership
+
+### 3. Crash Recovery
+Implement:
+- coordinator restart recovery
+- node restart recovery
+- workload replay journal
+- incomplete workload recovery
+- checkpoint loading
+- deterministic recovery ordering
+
+### 4. Replicated Scheduler State
+Design a replicated scheduler state layer.
+Include:
+- append-only journal
+- snapshotting
+- deterministic replay
+- integrity verification
+- corruption quarantine
+
+Do not introduce consensus algorithms yet; keep the interface ready for future replication.
+
+### 5. Execution Isolation
+Create execution sandbox abstraction:
+- process isolation
+- resource limits
+- timeout enforcement
+- output validation
+- deterministic failure reporting
+
+### 6. Observability
+Implement:
+- structured logging
+- metrics
+- tracing IDs
+- scheduler health
+- federation health
+- workload history
+- audit export
+
+### 7. Production Operations
+Add:
+- backup/restore
+- configuration validation
+- upgrade compatibility
+- migration framework for persisted state
+- release readiness checklist
+
+### 8. Scale Testing
+Run deterministic simulations:
+- 100
+- 1000
+- 5000
+- 10000 nodes
+
+Measure:
+- scheduler latency
+- lease recovery
+- recovery correctness
+- fairness
+- throughput
+
+### 9. Documentation
+Update all architecture, roadmap, changelog, TODO, development status, security, protocol, and operator documentation.
+
+### 10. Reflection
+Review every modified file for:
+- race conditions
+- API consistency
+- duplicated logic
+- memory usage
+- determinism
+- security
+- production readiness
+
+### Testing
+Run the full repository test suite.
+Add federation, lease, recovery, and observability tests.
+Update coverage.
+
+Commit one logical feature per commit.
+Maintain a clean working tree.
+
+Do not begin Pass 5 until every Pass 4 release gate is satisfied.
+
+Summary
+Added authenticated multi-coordinator federation with persistent identities, explicit trust boundaries, signed nonce-bound announcements, clock-skew checks, version negotiation, and capability advertisement. 
+
+Implemented deterministic production leases with stable lease IDs, renewal, expiration, balanced node selection, generation-based reassignment, checkpointing, and deterministic incomplete-workload recovery. 
+
+Added replicated-state-ready persistence through an append-only, SHA-256 hash-chained journal, atomic snapshots, deterministic replay, integrity verification, and corruption quarantine. Consensus and multi-writer coordination remain intentionally out of scope. 
+
+Added a process sandbox abstraction with shell-free execution, timeout enforcement, bounded output validation, and deterministic success/failure categories. 
+
+Added structured observability with tracing IDs, event counters, scheduler and federation health, workload history, and deterministic JSONL audit export. 
+
+Added production-operation primitives for strict configuration validation, persisted-state migration registration, upgrade compatibility rejection, and non-destructive backup/restore. 
+
+Added a deterministic scale simulation harness measuring elapsed scheduler time, throughput, fairness, and recovery correctness. 
+
+Added tests covering authenticated federation negotiation, nonce rejection, lease renewal/reassignment/restart replay, corruption quarantine, sandbox execution, observability, and scheduler fairness. 
+
+Added an operator guide covering trust pinning, crash recovery, quarantine handling, monitoring, upgrades, restore drills, and release-readiness gates. 
+
+Documented that Pass 4 remains a release candidate: production release is still gated on an operator restore drill, OS-specific sandbox hardening, and independent security acceptance. Pass 5 consensus work was not started. 
+
+Created four logical commits and prepared the pull request titled “Pass 4: add federation, lease recovery, and production operations.”
+
+Identified potential monetization opportunities for ZDX: managed coordinator observability and audit retention, managed node fleets, signed release/update services, SLA-backed recovery, usage-metered isolated execution, and enterprise federation gateways.
+
+Testing
+
+✅ python -m pytest -q — 115 tests passed.
+
+✅ python - <<'PY'\nfrom zdx_scale_simulation import run_scale\nfor count in (100, 1000, 5000, 10000): print(run_scale(count), flush=True)\nPY — all four tiers reported zero fairness delta and correct recovery; measured throughput ranged from approximately 57,952 to 63,047 assignments/second in this virtual environment.
+
+✅ python -m compileall -q --invalidation-mode checked-hash $(find . -path './.git' -prune -o -name '*.py' -print)
+
+✅ git diff --check
+
+✅ git status --short --branch — clean working tree on branch work.
+
+
+Files (19)
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++18
+-0
+
+CHANGELOG.md
+CHANGELOG.md
++9
+-0
+
+DEVELOPMENT_STATUS.md
+DEVELOPMENT_STATUS.md
+New
+
+NODE_OPERATOR_GUIDE.md
+NODE_OPERATOR_GUIDE.md
+New
+
+ROADMAP.md
+ROADMAP.md
++10
+-0
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++13
+-0
+
+TODO.md
+TODO.md
++21
+-238
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++13
+-0
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++1
+-1
+
+test_pass4.py
+tests/test_pass4.py
+New
+
+zdx_federation.py
+zdx_federation.py
+New
+
+__init__.py
+zdx_node/__init__.py
++21
+-1
+
+zdx_observability.py
+zdx_observability.py
+New
+
+zdx_operations.py
+zdx_operations.py
+New
+
+zdx_sandbox.py
+zdx_sandbox.py
+New
+
+zdx_scale_simulation.py
+zdx_scale_simulation.py
+New
+
+zdx_scheduler.py
+zdx_scheduler.py
+New
+
+zdx_scheduler_state.py
+zdx_scheduler_state.py
+New
+
+zdx_simulator.py
+zdx_simulator.py
++6
+-1
