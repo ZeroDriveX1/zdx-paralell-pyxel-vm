@@ -1,0 +1,527 @@
+# ZeroDriveX Parallel Pyxel VM -- Codex Prompt (Pass 8.0)
+
+# Mission
+
+Pass 7.1 established the release workflow, versioning, build pipeline,
+diagnostics, and reproducible packaging.
+
+**Pass 8 is the Platform Integration milestone.**
+
+Do **not** introduce speculative features. Complete and integrate the
+remaining production components into one cohesive platform.
+
+------------------------------------------------------------------------
+
+# Read First
+
+-   TODO.md (**authoritative**)
+-   README.md
+-   CHANGELOG.md
+-   DEVELOPMENT_STATUS.md
+-   ROADMAP.md
+-   SECURITY_MODEL.md
+-   TEST_PLAN.md
+-   ZDX_PROTOCOL.md
+-   RELEASE_NOTES.md
+
+Review every file changed in Passes 1--7.1.
+
+------------------------------------------------------------------------
+
+# Primary Objectives
+
+## 1. Android Application
+
+Create the actual Gradle project that the release pipeline expects.
+
+Include:
+
+-   Android foreground service
+-   Background worker (WorkManager)
+-   Node lifecycle manager
+-   Status dashboard
+-   Log viewer
+-   Settings screen
+-   Certificate management
+-   Build flavors (debug/release)
+-   APK and AAB generation
+-   Release signing hooks
+-   Version synchronization with VERSION
+
+The build pipeline must successfully produce a signed APK when
+credentials are supplied.
+
+------------------------------------------------------------------------
+
+## 2. Cross-Platform Installer
+
+Produce installers/packages for:
+
+-   Linux
+-   Windows
+-   Android
+
+Generate release archives automatically.
+
+------------------------------------------------------------------------
+
+## 3. CI/CD
+
+Complete GitHub Actions:
+
+-   build
+-   lint
+-   tests
+-   version validation
+-   SBOM
+-   release artifacts
+-   Android builds when SDK is available
+-   release tagging
+
+------------------------------------------------------------------------
+
+## 4. Dependency Modernization
+
+Replace deprecated setup.py build flow with a PEP 517 pyproject.toml
+workflow while preserving native extensions and reproducible builds.
+
+------------------------------------------------------------------------
+
+## 5. Enterprise Release Integrity
+
+Add:
+
+-   release signatures
+-   artifact verification
+-   provenance verification
+-   release manifest validation
+-   dependency inventory
+
+------------------------------------------------------------------------
+
+## 6. Reflection (Required)
+
+Review every subsystem.
+
+Document:
+
+-   simplifications performed
+-   duplicated logic removed
+-   API cleanup
+-   portability improvements
+-   build improvements
+-   deployment friction
+-   remaining production blockers
+-   commercialization opportunities
+
+Refactor where complexity exceeds value.
+
+------------------------------------------------------------------------
+
+## 7. Documentation
+
+Synchronize every document.
+
+Update TODO.md throughout development.
+
+Nothing should remain checked incorrectly.
+
+------------------------------------------------------------------------
+
+## Testing
+
+Run:
+
+-   full pytest
+-   compileall
+-   build pipeline
+-   release pipeline
+-   Android build (if SDK available)
+-   GitHub Actions locally where possible
+
+Repository must finish with:
+
+-   clean working tree
+-   updated TODO
+-   updated changelog
+-   release notes
+-   passing tests
+-   reproducible build
+
+Do not begin Pass 9 until all Pass 8 release gates are satisfied.
+
+
+worked for 12m
+
+
+Complete platform integration for ZeroDriveX
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+
+Conversation
+Diff
+Logs
+
+# ZeroDriveX Parallel Pyxel VM -- Codex Prompt (Pass 8.0)
+
+# Mission
+
+Pass 7.1 established the release workflow, versioning, build pipeline,
+diagnostics, and reproducible packaging.
+
+**Pass 8 is the Platform Integration milestone.**
+
+Do **not** introduce speculative features. Complete and integrate the
+remaining production components into one cohesive platform.
+
+------------------------------------------------------------------------
+
+# Read First
+
+-   TODO.md (**authoritative**)
+-   README.md
+-   CHANGELOG.md
+-   DEVELOPMENT_STATUS.md
+-   ROADMAP.md
+-   SECURITY_MODEL.md
+-   TEST_PLAN.md
+-   ZDX_PROTOCOL.md
+-   RELEASE_NOTES.md
+
+Review every file changed in Passes 1--7.1.
+
+------------------------------------------------------------------------
+
+# Primary Objectives
+
+## 1. Android Application
+
+Create the actual Gradle project that the release pipeline expects.
+
+Include:
+
+-   Android foreground service
+-   Background worker (WorkManager)
+-   Node lifecycle manager
+-   Status dashboard
+-   Log viewer
+-   Settings screen
+-   Certificate management
+-   Build flavors (debug/release)
+-   APK and AAB generation
+-   Release signing hooks
+-   Version synchronization with VERSION
+
+The build pipeline must successfully produce a signed APK when
+credentials are supplied.
+
+------------------------------------------------------------------------
+
+## 2. Cross-Platform Installer
+
+Produce installers/packages for:
+
+-   Linux
+-   Windows
+-   Android
+
+Generate release archives automatically.
+
+------------------------------------------------------------------------
+
+## 3. CI/CD
+
+Complete GitHub Actions:
+
+-   build
+-   lint
+-   tests
+-   version validation
+-   SBOM
+-   release artifacts
+-   Android builds when SDK is available
+-   release tagging
+
+------------------------------------------------------------------------
+
+## 4. Dependency Modernization
+
+Replace deprecated setup.py build flow with a PEP 517 pyproject.toml
+workflow while preserving native extensions and reproducible builds.
+
+------------------------------------------------------------------------
+
+## 5. Enterprise Release Integrity
+
+Add:
+
+-   release signatures
+-   artifact verification
+-   provenance verification
+-   release manifest validation
+-   dependency inventory
+
+------------------------------------------------------------------------
+
+## 6. Reflection (Required)
+
+Review every subsystem.
+
+Document:
+
+-   simplifications performed
+-   duplicated logic removed
+-   API cleanup
+-   portability improvements
+-   build improvements
+-   deployment friction
+-   remaining production blockers
+-   commercialization opportunities
+
+Refactor where complexity exceeds value.
+
+------------------------------------------------------------------------
+
+## 7. Documentation
+
+Synchronize every document.
+
+Update TODO.md throughout development.
+
+Nothing should remain checked incorrectly.
+
+------------------------------------------------------------------------
+
+## Testing
+
+Run:
+
+-   full pytest
+-   compileall
+-   build pipeline
+-   release pipeline
+-   Android build (if SDK available)
+-   GitHub Actions locally where possible
+
+Repository must finish with:
+
+-   clean working tree
+-   updated TODO
+-   updated changelog
+-   release notes
+-   passing tests
+-   reproducible build
+
+Do not begin Pass 9 until all Pass 8 release gates are satisfied.
+Copy
+Summary
+Added a complete Android Gradle application with a foreground node service, WorkManager heartbeat scheduling, dashboard, event log, coordinator settings, certificate fingerprint configuration, debug/release variants, APK/AAB tasks, release-signing hooks, and centralized versioning. 
+
+Migrated Python packaging to a PEP 517 pyproject.toml workflow while retaining the four native Cython extensions and sourcing the package version from VERSION. 
+
+Added reproducible Linux and Windows archives, Python distributions, Android artifact collection, SHA-256 release manifests, size validation, optional detached GPG signatures, and cross-platform installer entry points. 
+
+Consolidated GitHub Actions around version validation, linting, tests, compilation, native builds, SBOM generation, Android builds, artifact publication, release-tag validation, and provenance attestations. 
+
+Restored the legacy ZDXNode import API after identifying a package/module shadowing conflict, and restored the deterministic capability scheduler required by the simulation suite. 
+
+Synchronized the roadmap, security model, test plan, changelog, release notes, and authoritative Pass 8 TODO. Unfinished production gates remain explicitly unchecked, and Pass 9 remains blocked. 
+
+Documented commercialization opportunities found during the platform review—managed coordinators, fleet observability and policy, private-network hosting, compliance exports, verified workload marketplaces, and enterprise support—while noting that security and privacy validation must precede commercialization. 
+
+Committed the implementation on the current branch as commit 54ffb5d and created the pull-request metadata titled “Complete Pass 8 platform integration.”
+
+Testing
+
+✅ pytest -q — 110 tests passed.
+
+✅ python -m compileall -q -x '(^|/)(\.git|build|dist|release)/' .
+
+✅ python -m build — generated the source distribution and native CPython wheel successfully.
+
+✅ SOURCE_DATE_EPOCH=0 python scripts/release.py build
+
+✅ python scripts/release.py verify
+
+✅ sha256sum -c /tmp/release.sha — repeated builds produced identical Linux tarball and Windows ZIP checksums.
+
+✅ python scripts/validate_version.py
+
+✅ ruff check .
+
+✅ git diff --check
+
+⚠️ gradle --project-dir android lintDebug assembleDebug — Gradle resolved the project, but the local environment has no configured Android SDK/ANDROID_HOME; CI provisions the SDK before running the same build. 
+
+✅ git status --short --branch — clean working tree on branch work.
+
+
+Files (38)
+
+ci.yml
+.github/workflows/ci.yml
+New
+
+pytest.yml
+.github/workflows/pytest.yml
+Deleted
+
+release.yml
+.github/workflows/release.yml
+New
+
+.gitignore
+.gitignore
+New
+
+CHANGELOG.md
+CHANGELOG.md
++8
+-1
+
+DEVELOPMENT_STATUS.md
+DEVELOPMENT_STATUS.md
+New
+
+README.md
+README.md
++33
+-9
+
+RELEASE_NOTES.md
+RELEASE_NOTES.md
+New
+
+ROADMAP.md
+ROADMAP.md
++8
+-2
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++5
+-1
+
+TEST_PLAN.md
+TEST_PLAN.md
++9
+-0
+
+TODO.md
+TODO.md
++21
+-238
+
+VERSION
+VERSION
+New
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++2
+-0
+
+ANDROID_BUILD.md
+android/ANDROID_BUILD.md
++14
+-12
+
+README.md
+android/README.md
++7
+-2
+
+build.gradle.kts
+android/app/build.gradle.kts
+New
+
+proguard-rules.pro
+android/app/proguard-rules.pro
+New
+
+AndroidManifest.xml
+android/app/src/main/AndroidManifest.xml
+New
+
+MainActivity.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/MainActivity.kt
+New
+
+NodeLifecycleManager.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/NodeLifecycleManager.kt
+New
+
+NodeService.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/NodeService.kt
++13
+-0
+
+NodeWorker.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/NodeWorker.kt
+New
+
+styles.xml
+android/app/src/main/res/values/styles.xml
+New
+
+build.gradle.kts
+android/build.gradle.kts
+New
+
+gradle.properties
+android/gradle.properties
+New
+
+settings.gradle.kts
+android/settings.gradle.kts
+New
+
+build.sh
+build.sh
++7
+-31
+
+pyproject.toml
+pyproject.toml
+New
+
+install.ps1
+scripts/install.ps1
+New
+
+install.sh
+scripts/install.sh
+New
+
+release.py
+scripts/release.py
+New
+
+validate_version.py
+scripts/validate_version.py
+New
+
+setup.py
+setup.py
++1
+-5
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++1
+-1
+
+__init__.py
+zdx_node/__init__.py
++2
+-1
+
+legacy.py
+zdx_node/legacy.py
+New
+
+zdx_scheduler.py
+zdx_scheduler.py
+New
+
