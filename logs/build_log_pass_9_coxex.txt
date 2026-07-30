@@ -1,0 +1,145 @@
+Update all documentation
+ZeroDriveX1/zdx-paralell-pyxel-vm
+
+
+
+Conversation
+Diff
+Logs
+
+Ok now do a final pass for all documentation make sure it's all up to date and correct.
+Copy
+Summary
+Rewrote the main README as valid Markdown with an accurate component-status table, reproducible development dependencies, verified quick start, CLI commands, VM semantics, memory limitations, testing guidance, and security warnings. 
+
+Updated the architecture documentation to distinguish functional local execution from prototype networking, coordination, security, GUI, Android, and runtime layers. 
+
+Audited all persistence and database surfaces. ZDX currently uses local JSON and PNG files rather than a transactional database; the documentation now identifies each storage location and recommends atomic writes, locking, schema versions, restrictive permissions, corruption recovery, and backup/restore tests. 
+
+Reconciled the networking and security documentation with the actual implementation: the TCP server remains plaintext and unauthenticated, standalone authentication controls are not integrated end to end, and PNG encoding/checksums must not be treated as encryption or sender authentication. 
+
+Updated the discovery, frame-manifest, node-identity, protocol, simulation, GUI, testing, roadmap, changelog, TODO, and Android documents so implemented foundations are no longer described as production-ready capabilities.
+
+Documented the exact full-suite blockers: the zdx_node.py/zdx_node/ import collision, missing zdx_scheduler, two authentication tests using placeholder signatures against real Ed25519 verification, and incomplete dependency metadata. 
+
+Reclassified Android as a source prototype rather than a supported/buildable application and documented the missing Gradle project, manifest, resources, UI, tests, lifecycle handling, and security integration. 
+
+Committed the documentation pass in commit 55a58fa and created the pull request metadata with title “docs: reconcile project documentation with implementation.”
+
+Findings and recommended next work
+Immediate engineering priority: repair the import collision, restore scheduling, correct authentication integration tests, add dependency/packaging metadata, remove tracked bytecode, and align CI. These are now explicitly sequenced as Priority 0. 
+
+Architectural debt: four identity implementations, two protocol-envelope models, and multiple registry abstractions should be consolidated before expanding the network. 
+
+Security: do not expose the current server to untrusted networks or accept untrusted workloads until TLS, authenticated enrollment, replay protection, revocation, authorization, quotas, sandboxing, and independent review are complete. 
+
+Monetization opportunities after correctness and security gates:
+
+A supported Python SDK/CLI subscription with signed releases and enterprise support.
+
+A hosted operator dashboard offering fleet health, workload scheduling, audit logs, and usage analytics.
+
+Managed deployment, telemetry, SLA, and compliance services.
+
+A secure Android compute-node product with explicit opt-in resource policies.
+
+Verifiable compute metering and billing, followed eventually by a workload marketplace. These product surfaces are reflected in the roadmap, with billing deliberately gated on verifiable work accounting. 
+
+Testing
+
+✅ python - <<'PY' ... PY — end-to-end compiler, VM execution, shared-memory, PNG storage, and recall simulation passed.
+
+✅ python zdx_protocol_simulator.py
+
+✅ python -m pytest -q test_vm.py test_registry.py tests/test_zdx_enrollment.py tests/test_zdx_protocol.py test_server.py test_sync.py zdx_node/identity_test.py — 80 passed.
+
+✅ bash build.sh — native Cython extensions built successfully after installing the documented build dependency.
+
+✅ python -m compileall -q .
+
+✅ git diff --check
+
+✅ Internal Markdown-link validation script — no missing repository-relative documentation targets.
+
+❌ python -m pytest -q — full collection remains blocked by the existing zdx_node module/package collision and absent zdx_scheduler; these failures are documented rather than hidden. 
+
+
+Files (16)
+
+ARCHITECTURE.md
+ARCHITECTURE.md
++75
+-47
+
+CHANGELOG.md
+CHANGELOG.md
++5
+-0
+
+GUI_BUILD.md
+GUI_BUILD.md
++25
+-42
+
+NETWORKING.md
+NETWORKING.md
++31
+-40
+
+README.md
+README.md
++134
+-162
+
+ROADMAP.md
+ROADMAP.md
++45
+-20
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++45
+-15
+
+TEST_PLAN.md
+TEST_PLAN.md
++66
+-13
+
+TODO.md
+TODO.md
++6
+-1
+
+ZDX_DISCOVERY.md
+ZDX_DISCOVERY.md
++12
+-16
+
+ZDX_FRAME_MANIFEST.md
+ZDX_FRAME_MANIFEST.md
++11
+-8
+
+ZDX_NODE_IDENTITY.md
+ZDX_NODE_IDENTITY.md
++14
+-8
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++13
+-7
+
+ZDX_SIMULATION.md
+ZDX_SIMULATION.md
++14
+-14
+
+ANDROID_BUILD.md
+android/ANDROID_BUILD.md
++29
+-25
+
+README.md
+android/README.md
