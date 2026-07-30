@@ -1,3 +1,7 @@
+import pytest
+
+pytest.importorskip("cryptography", reason="Ed25519 identity requires cryptography")
+
 from zdx_node.identity import NodeIdentity
 
 

@@ -1,0 +1,25 @@
+# Python caches and test output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Native build output
+build/
+dist/
+*.so
+*.pyd
+*.c
+
+# Local runtime state
+.zdx/
+zdx_memory/
+shared_state.json
+brain_textures/
+challenge_frame.png
+program.png

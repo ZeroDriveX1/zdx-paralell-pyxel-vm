@@ -17,17 +17,17 @@ from zdx_sync import FrameSync
 
 def main():
     parser = argparse.ArgumentParser(description="ZDX Pyxel VM Node")
-    sub = parser.add_subparsers(dest="command")
+    sub = parser.add_subparsers(dest="command", required=True)
 
-    serve = sub.add_parser("serve")
-    serve.add_argument("--port", type=int, default=8765)
+    serve = sub.add_parser("serve", help="start the local development node")
+    serve.add_argument("--port", type=int, default=8765, help="listen port (default: 8765)")
 
-    ping = sub.add_parser("ping")
-    ping.add_argument("host")
-    ping.add_argument("--port", type=int, default=8765)
+    ping = sub.add_parser("ping", help="send a heartbeat to a local node")
+    ping.add_argument("host", help="node hostname or IP address")
+    ping.add_argument("--port", type=int, default=8765, help="node port (default: 8765)")
 
-    frame = sub.add_parser("hash")
-    frame.add_argument("path")
+    frame = sub.add_parser("hash", help="print the SHA-256 digest of a frame")
+    frame.add_argument("path", help="path to the frame file")
 
     args = parser.parse_args()
 

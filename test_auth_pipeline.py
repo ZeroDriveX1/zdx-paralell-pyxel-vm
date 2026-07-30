@@ -543,7 +543,7 @@ class TestPipelineIntegration:
         self.peers = {}
         self.revoked = set()
 
-        def verify_sig(peer_id, sig, payload):
+        def verify_sig(peer_id, payload, sig):
             return sig == f"sig_{peer_id}"
 
         def check_revoked(peer_id):

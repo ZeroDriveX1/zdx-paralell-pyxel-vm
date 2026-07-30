@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     # Build a tiny program so the example is self-contained
     compiler = SimpleCompiler()
-    prog = [["SET_A 10", "SET_B 5", "ADD", "STORE_MEM 0", "HALT"]]
+    prog = [["SET_A 10", "SET_B 5", "ADD", "COPY_OUT", "STORE_MEM 0", "HALT"]]
     tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
     tmp.close()
     compiler.compile(prog, tmp.name)
