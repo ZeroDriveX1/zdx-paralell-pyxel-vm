@@ -1,0 +1,266 @@
+Primary Objectives
+1. Real Distributed Network
+Replace simulation where practical with live deployment.
+Implement and validate:
+Multi-coordinator deployment
+Multiple worker nodes
+Linux nodes
+Windows nodes
+Android nodes
+Cross-platform interoperability
+Coordinator discovery
+Automatic node registration
+Heartbeat synchronization
+Capability negotiation
+Secure workload dispatch
+2. Production Networking
+Complete production networking.
+Include:
+TLS/mTLS support
+Certificate rotation
+Protocol version negotiation
+Connection recovery
+NAT traversal where applicable
+IPv4/IPv6 compatibility
+Connection pooling
+Compression negotiation
+Bandwidth optimization
+3. High Availability
+Implement production reliability.
+Include:
+Coordinator failover
+Worker reconnection
+Persistent work queues
+Lease recovery
+Crash recovery validation
+Rolling upgrades
+Graceful shutdown
+Automatic restart handling
+4. Real Workload Validation
+Execute meaningful distributed workloads instead of synthetic benchmarks.
+Validate:
+Deterministic computation
+Distributed simulations
+Native compute jobs
+Parallel task execution
+Result verification
+Duplicate execution handling
+Partial node failures
+Slow node recovery
+Measure:
+Throughput
+Latency
+Scheduling efficiency
+Recovery time
+Resource utilization
+5. Observability
+Expand production diagnostics.
+Include:
+Coordinator dashboard
+Worker status
+Live metrics
+Queue depth
+Scheduling metrics
+Network latency
+Resource utilization
+Failure reports
+Structured logging
+Exportable telemetry
+
+
+6. Security Validation
+Perform a production security review.
+Validate:
+Authentication
+Authorization
+Replay protection
+Certificate validation
+Protocol compatibility
+Input validation
+Resource exhaustion handling
+Malformed packet handling
+Rate limiting
+Secure defaults
+Document every identified weakness.
+7. Performance Review
+Profile every subsystem.
+Identify:
+Scheduling bottlenecks
+Memory usage
+Network overhead
+Serialization costs
+Lock contention
+Startup time
+Build performance
+Optimize only where measurable improvements exist.
+8. Reflection (Required)
+Review the entire architecture.
+Document:
+Components simplified
+Redundant code removed
+API improvements
+Deployment improvements
+Remaining technical debt
+Remaining production blockers
+Commercial deployment opportunities
+Refactor where complexity exceeds value.
+9. Documentation
+Synchronize:
+README
+CHANGELOG
+ROADMAP
+SECURITY_MODEL
+TEST_PLAN
+RELEASE_NOTES
+TODO
+No completed task should remain unchecked.
+Testing
+Execute:
+Full pytest suite
+Compileall
+Cross-platform builds
+Android build
+Linux deployment
+Windows deployment
+Multi-node deployment
+Coordinator failover tests
+Long-duration stability test (24+ hours if practical)
+Network recovery testing
+Security regression testing
+Performance benchmark suite
+Repository must finish with:
+Clean working tree
+Updated documentation
+Updated TODO
+Updated CHANGELOG
+Passing tests
+Reproducible builds
+Successful multi-node deployment
+Exit Criteria
+Pass 9 is complete only when:
+Real nodes communicate across supported platforms.
+Distributed workloads execute successfully.
+Failover and recovery are validated.
+Release artifacts remain reproducible.
+All production blockers are documented.
+The repository is ready to begin Release Candidate stabilization (Pass 10).
+
+Summary
+Restored package-level ZDXNode compatibility with a portable coordinator client supporting identity registration, heartbeats, frame hashing, and frame announcements. 
+
+Added a thread-safe, deterministic, capability-aware scheduler with node removal and failover behavior. 
+
+Hardened protocol decoding to reject malformed envelopes, invalid field types, incompatible versions, and oversized messages before dispatch. 
+
+Added TLS 1.2+ client and server context factories, including optional mandatory mutual TLS when a client CA is configured. 
+
+Improved coordinator reliability by isolating malformed clients, accepting optional TLS, and closing the listening socket during graceful shutdown. 
+
+Added regression tests covering protocol incompatibility, malformed and oversized packets, capability negotiation, and scheduler failover. 
+
+Corrected the authentication integration test callback so its argument order matches the documented authentication pipeline API. 
+
+Synchronized the README, changelog, roadmap, security model, protocol documentation, test plan, release notes, development status, and authoritative TODO. The documentation explicitly states that Pass 9 remains in progress rather than claiming unsupported Release Candidate readiness. 
+
+Documented the security findings: workload authorization is not yet bound to mTLS identity, rotation remains manual, raw TCP rate limiting and coordinator consensus are absent, persistence is not transactional or encrypted, and independent fuzzing and penetration testing remain required. 
+
+Documented potential commercial opportunities—including managed coordinators, fleet observability, certificate lifecycle management, audit exports, support, and verified workload marketplaces—along with the prerequisite privacy, isolation, billing, SLA, and licensing reviews. 
+
+Committed the changes as 1234ded (Harden production network validation foundations) and created the requested pull request metadata.
+
+Testing
+
+✅ python -m pytest -q — 114 tests passed.
+
+✅ python -m compileall -q .
+
+✅ bash build.sh — native Cython extensions compiled and the distribution was assembled; Cython emitted a pre-existing advisory about negative indexing with wraparound=False.
+
+✅ git diff --check
+
+✅ git status --short --branch — clean working tree on branch work.
+
+Remaining Production Blockers
+Physical Linux/Windows/Android interoperability, multi-coordinator leader election, replicated persistent queues and leases, authenticated workload execution, certificate rotation, IPv6/NAT validation, observability, cross-platform reproducible builds, independent security testing, and a 24-hour soak test could not truthfully be validated inside this single Linux environment. They remain explicitly unchecked in the authoritative TODO. 
+
+
+Files (17)
+
+.gitignore
+.gitignore
+New
+
+CHANGELOG.md
+CHANGELOG.md
++17
+-2
+
+DEVELOPMENT_STATUS.md
+DEVELOPMENT_STATUS.md
+New
+
+README.md
+README.md
++20
+-2
+
+RELEASE_NOTES.md
+RELEASE_NOTES.md
+New
+
+ROADMAP.md
+ROADMAP.md
++26
+-24
+
+SECURITY_MODEL.md
+SECURITY_MODEL.md
++21
+-14
+
+TEST_PLAN.md
+TEST_PLAN.md
++20
+-13
+
+TODO.md
+TODO.md
++40
+-238
+
+ZDX_PROTOCOL.md
+ZDX_PROTOCOL.md
++12
+-6
+
+test_auth_pipeline.py
+test_auth_pipeline.py
++1
+-1
+
+test_production_network.py
+tests/test_production_network.py
+New
+
+zdx_network.py
+zdx_network.py
++28
+-0
+
+__init__.py
+zdx_node/__init__.py
++7
+-2
+
+client.py
+zdx_node/client.py
+New
+
+zdx_scheduler.py
+zdx_scheduler.py
+New
+
+zdx_server.py
+zdx_server.py
++17
+-3
