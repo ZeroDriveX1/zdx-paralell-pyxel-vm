@@ -1,0 +1,150 @@
+Implemented Production Persistence Pass 12.0.
+
+  Summary:
+
+  - Added canonical transactional persistence with
+    atomic replacement, temporary commits, file/
+    directory fsync, rollback backups, and
+    corruption quarantine.
+
+  - Added bounded POSIX process locks with reader/
+    writer coordination and automatic crash-
+    release semantics.
+
+  - Added checksummed, timestamped, versioned
+    state envelopes.
+
+  - Added migration registration, module
+    discovery, sequential upgrades, migration
+    logs, and failure rollback.
+
+  - Migrated VM, pixel memory, coordinator, karma,
+    identity, trust, revocation, session, and
+    registry state.
+
+  - Preserved legacy JSON and PNG readability.
+  - Did not modify Android or add PNG encryption.
+
+  ### Storage architecture
+
+  zdx_storage.py now provides:
+
+  - StateStore for versioned JSON state.
+  - FileLock for bounded process-safe locking.
+  - atomic_write_bytes() for same-directory atomic
+    commits.
+
+  - atomic_write_secret() for owner-only private-
+    key files.
+
+  - SHA-256 integrity verification.
+  - Previous-generation backups.
+  - Automatic quarantine and verified recovery.
+  - Process-safe read/modify/write transactions.
+
+  New state documents contain:
+
+  - Schema and envelope versions.
+  - Creation and update timestamps.
+  - Compatibility metadata.
+  - Migration history.
+  - Payload checksum.
+  - Application data.
+
+  Private Ed25519 keys remain separate 0600 secret
+  files; versioned metadata contains no private
+  material.
+
+  ### Migration framework
+
+  zdx_migrations/__init__.py provides automatic
+  migration-module discovery and decorator-based
+  registration.
+
+  Migrations:
+
+  - Advance exactly one version at a time.
+  - Run sequentially.
+  - Reject missing or newer schemas.
+  - Record an audit log.
+  - Leave the original generation intact after
+    failure.
+
+  - Can define rollback callbacks.
+  - Support legacy unversioned state upgrading
+    through later registered versions.
+
+  ### Integrated components
+
+  - zdx_pixel_memory/store.py
+  - zdx_parallel_vm.py
+  - zdx_state.py
+  - zdx_node_registry.py
+  - zdx_network.py
+  - security/identity.py
+  - security/key_store.py
+  - security/revocation.py
+  - zdx_ed25519_signer.py
+  - zdx_karma_system.py
+  - Legacy identity compatibility:
+    zdx_node_identity.py, zdx_node/identity.py
+
+  Recovered session records are audit metadata
+  only; active authenticated sessions are not
+  resumed after restart.
+
+  ### New tests
+
+  - test_storage.py
+  - test_persistence_integration.py
+
+  Coverage includes:
+
+  - Interrupted writes.
+  - Simulated commit failure and rollback.
+  - Concurrent processes and readers.
+  - Lock timeouts and stale lock metadata.
+  - Checksum corruption and quarantine.
+  - Backup recovery.
+  - Sequential and failed migrations.
+  - Legacy multi-version upgrades.
+  - Pixel index/value concurrency.
+  - Identity permissions.
+  - Security and coordinator restart recovery.
+
+  Documentation updated:
+
+  - README.md
+  - DEVELOPMENT_STATUS.md
+  - SECURITY_MODEL.md
+  - TEST_PLAN.md
+  - CHANGELOG.md
+
+  The README limitations for non-transactional
+  pixel memory and missing migration/recovery
+  support were removed.
+
+  ### Remaining persistence limitations
+
+  - POSIX fcntl and fsync behavior on NFS or other
+    distributed filesystems requires deployment-
+    specific validation.
+
+  - Physical power-loss behavior depends on the
+    production device filesystem and has not been
+    tested here.
+
+  - PNG content remains unencrypted by design for
+    this pass.
+
+  - Active sessions intentionally require
+    reauthentication after restart.
+
+  ### Final validation
+
+  - python -m pytest -q: 143 passed
+  - python -m compileall -q .: passed
+  - git diff --check: passed
+
+─ Worked for 3h 41m 15s ──────────────────────────
+
