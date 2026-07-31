@@ -1,0 +1,188 @@
+00
+• Implemented Pass 15’s provider and mission
+  architecture. Deterministic acceptance is green,
+  but real-model acceptance remains blocked by the
+  host’s incomplete Ollama runtime.
+
+  ## Completed
+
+  - Added InferenceProvider abstraction and pooled
+    OllamaProvider.
+
+  - Environment-only configuration with defaults:
+      - http://localhost:11434
+      - qwen2.5:1.5b
+
+  - Added bounded timeouts, retries, exponential
+    backoff, jitter, output tokens, response size,
+    and connection pooling.
+
+  - Added structured provider errors and NDJSON
+    streaming support.
+
+  - Restricted plaintext HTTP to loopback and
+    rejected credentials in endpoint URLs.
+
+  - Integrated missions through:
+
+  Mission
+  → PyxelRegistry
+  → ZDXAgentRuntime
+  → ZDXScheduler
+  → MissionAgent
+  → InferenceProvider
+  → Verification
+  → StateStore / optional PNG memory
+  → Metrics
+
+  - Added bounded reflection with early
+    termination and a hard two-cycle maximum.
+
+  - Added transactional mission and failure
+    history.
+
+  - Added zdx-mission CLI and machine-readable
+    benchmarks.
+
+  - No branching, voting, BAN routing, or
+    distributed inference was introduced.
+
+  ## Files added
+
+  - zdx_inference.py
+  - zdx_mission.py
+  - zdx_mission_cli.py
+  - zdx_ollama_benchmark.py
+  - test_ollama_integration.py
+
+  Modified integration files include
+  zdx_agent_runtime.py, zdx_scheduler.py,
+  setup.py, README.md, DEVELOPMENT_STATUS.md,
+  SECURITY_MODEL.md, TEST_PLAN.md, OPERATIONS.md,
+  CHANGELOG.md, and ZDX_PROTOCOL.md.
+
+  ## New tests
+
+  Thirteen focused tests cover:
+
+  - Ollama connectivity and model inventory
+  - Environment defaults and overrides
+  - HTTP connection reuse
+  - Retry/backoff behavior
+  - Timeouts
+  - Malformed and oversized responses
+  - Streaming NDJSON
+  - Remote plaintext and URL credential rejection
+  - Registry/runtime/scheduler mission routing
+  - Transactional and PNG memory persistence
+  - Metrics JSON export
+  - Reflection termination and two-cycle ceiling
+  - Provider failure recovery without scheduler
+    deadlock
+
+  ## Benchmark results
+
+  Artifact: validation_results/
+  pass15_ollama_stub_benchmarks.json
+
+  SHA-256:
+
+
+  04311299900e0d50f160f39f7dc2875df825421541898d7f
+  437cbd31ddd83fd5
+
+  Deterministic-provider framework results:
+
+  - 1,351.60 missions/minute
+  - 44.39 ms average benchmark mission latency
+  - 28.05 µs average scheduler overhead
+  - 37.31 ms average persistence overhead
+  - 27.85 ms one-cycle reflection overhead
+  - Peak RSS: 96,348 KiB
+  - Open descriptors: 4
+
+  These measure framework overhead, not Qwen
+  inference throughput.
+
+  ## Real Ollama validation
+
+  qwen2.5:1.5b was successfully downloaded:
+
+  ID: 65ec06548149
+  Size: 986 MB
+
+  The real scheduled mission failed closed after
+  three HTTP 500 attempts. Direct ollama run
+  identified the external cause:
+
+  error starting llama-server: llama-server binary
+  not found
+
+  The failure was transactionally persisted in
+  validation_results/pass15_live_missions.json,
+  and scheduler execution unwound normally.
+
+  I attempted Ollama’s official Linux installer
+  (https://ollama.com/download/linux), but stopped
+  it because the generic bundle began extracting
+  large CUDA assets on this non-CUDA Termux host
+  and did not offer a practical Termux CPU-runner
+  repair. Only the incomplete
+  /usr/local/lib/ollama files from that attempt
+  were removed; the Qwen model remains installed.
+
+  Therefore:
+
+  - Provider connectivity: verified
+  - Model inventory: verified
+  - Graceful provider failure: verified
+  - Real Qwen response: not verified
+  - Live model benchmark: not claimed
+
+  ## Mission examples
+
+  Normal execution once a compatible llama-server
+  is installed:
+
+  export ZDX_OLLAMA_MODEL=qwen2.5:1.5b
+  export ZDX_MISSION_HISTORY=.zdx/missions.json
+
+  zdx-mission "Explain the VM execution order in
+  three sentences."
+
+  Reflection:
+
+  export ZDX_REFLECTION_ENABLED=true
+  export ZDX_REFLECTION_MAX_CYCLES=2
+
+  zdx-mission "Review the persistence recovery
+  design."
+
+  ## Final validation
+
+  Focused Ollama tests: 13 passed
+  Complete suite:        183 passed in 53.71s
+  compileall:            passed
+  git diff --check:      passed
+  Source packaging:      passed
+
+  Commands executed included:
+
+  python -m pytest -q test_ollama_integration.py
+  python -m pytest -q test_ollama_integration.py
+  test_registry.py
+  python -m pytest -q
+  python -m compileall -q .
+  git diff --check
+  python zdx_ollama_benchmark.py --iterations 20 \
+    --output validation_results/
+    pass15_ollama_stub_benchmarks.json
+  python setup.py sdist
+  ollama pull qwen2.5:1.5b
+  ollama run qwen2.5:1.5b "Reply with exactly:
+  ready"
+
+  Pass 15’s code-level acceptance criteria are
+  satisfied, but the mission goal of executing a
+  real local AI response remains blocked until a
+  Termux-compatible llama-server is installed.
