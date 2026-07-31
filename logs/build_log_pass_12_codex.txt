@@ -1,0 +1,202 @@
+
+• Implemented the locally verifiable portions of
+  Pass 14 and prepared RC2 deployment artifacts.
+  RC2 acceptance remains pending because this
+  environment cannot perform the required multi-
+  machine, 24-hour, platform-service, or physical
+  power-loss validation.
+
+  ## Completed work
+
+  - Added TLS 1.3 transport security with:
+      - Mutual certificate authentication
+      - CA verification
+      - Hostname verification
+      - Expired certificate rejection
+      - Optional CRL/revocation checking
+      - Reloadable server TLS contexts for
+        certificate rotation
+
+      - Fail-closed production defaults
+
+  - Added reconnecting zdx-worker service
+    entrypoint.
+
+  - Integrated connected workers with the thread-
+    safe scheduler lifecycle.
+
+  - Validated join, leave, rejoin, scheduler
+    reselection, coordinator restart, and fresh
+    authentication.
+
+  - Added deterministic network fault proxy
+    validation.
+
+  - Added SIGKILL recovery tests for commits,
+    migrations, and registry updates.
+
+  - Prepared:
+      - Python RC2 source distribution
+      - Dockerfile and Compose example
+      - systemd unit
+      - Windows service-command helper
+      - Deployment, operations, and backup/restore
+        guidance
+
+  - Installed missing build prerequisites:
+      - setuptools 83.0.0
+      - Cython 3.2.9
+
+  ## Deployment topology tested
+
+  - Physical machines: 1
+  - Virtual machines: 0
+  - Platform: ARM64 Android/Termux
+  - Coordinator: 1 process
+  - Workers: 3 isolated spawned OS processes
+  - Transport: loopback TCP with mutual TLS and
+    Ed25519 application authentication
+
+  This proves isolated-process behavior over
+  actual sockets, but not physical or virtual
+  multi-machine deployment.
+
+  ## New Pass 14 files
+
+  - zdx_tls.py
+  - zdx_worker.py
+  - zdx_fault_proxy.py
+  - test_tls.py
+  - test_distributed_deployment.py
+  - test_network_faults.py
+  - test_power_loss.py
+  - DEPLOYMENT.md
+  - OPERATIONS.md
+  - Dockerfile
+  - docker-compose.example.yml
+  - MANIFEST.in
+  - packaging/systemd/zdx-coordinator.service
+  - packaging/windows/install-service.ps1
+  - examples/coordinator.env
+
+  Core changes also affected zdx_server.py,
+  zdx_node/client.py, zdx_scheduler.py,
+  zdx_cli.py, setup.py, and required
+  documentation.
+
+  ## Test and recovery results
+
+  Focused Pass 14 validation:
+
+  14 passed in 25.53s
+
+  Complete suite:
+
+  170 passed in 42.80s
+
+  Recovery validation included repeated SIGKILL
+  during:
+
+  - Atomic persistent commits
+  - Migrations
+  - Registry updates
+
+  Recovered state was always a valid committed
+  generation. This is hard-process termination
+  testing, not physical power removal.
+
+  ## Benchmark results
+
+  Machine-readable output:
+
+  validation_results/pass14_benchmarks.json
+
+  Selected local measurements:
+
+  - VM execution: 640.28 ops/s
+  - Persistence: 39.27 commits/s
+  - Scheduler selection: 13,008.43 ops/s
+  - Registry lookup: 885,571.27 ops/s
+  - Ed25519 signing: 22,205.66 ops/s
+  - Ed25519 verification: 6,858.14 ops/s
+  - PNG serialization: 248.01 ops/s
+  - State migration: 22.23 ops/s
+  - Authenticated coordinator dispatch: 2,455.67
+    ops/s
+
+  - Captured peak RSS: 104,684 KiB
+  - Open descriptors at capture: 5
+
+  These are microbenchmarks, not fleet capacity
+  limits. The maximum locally tested simultaneous
+  worker count was three; no capacity-to-failure
+  claim is made.
+
+  ## RC2 artifact
+
+  dist/open_pyxel-1.0.0rc2.tar.gz
+  SHA-256:
+  6d7a5656b8a9e83d9b8d65857f430083d46534ca4f2b6aa4
+  5da034f0634a2ff7
+
+  The archive was checked to contain the
+  deployment and operations documentation,
+  Dockerfile, systemd unit, Windows helper, and
+  configuration example.
+
+  ## Exact validation commands
+
+  python -m pytest -q
+  test_distributed_deployment.py test_tls.py
+  test_network_faults.py test_power_loss.py
+  python -m pytest -q
+  python -m compileall -q .
+  git diff --check
+  python zdx_validation.py --mode benchmarks
+  --iterations 100 \
+    --output validation_results/
+    pass14_benchmarks.json
+  python setup.py sdist
+  tar -tzf dist/open_pyxel-1.0.0rc2.tar.gz
+  sha256sum dist/open_pyxel-1.0.0rc2.tar.gz
+
+  All final tests, compile checks, diff checks,
+  benchmarks, and source-package generation
+  passed. Cython emitted an existing warning about
+  negative indexing with wraparound=False in
+  zdx_parallel_vm.py.
+
+  ## Remaining limitations
+
+  RC2 acceptance is not complete because the
+  following were unavailable:
+
+  - Multiple physical or virtual machines
+  - Automatic network discovery
+  - Actual distributed workload execution/
+    redistribution
+
+  - 24-hour soak
+  - Privileged latency/loss/jitter/clock-skew
+    injection
+
+  - Physical or hypervisor power removal
+  - Capacity testing to an observed failure/SLO
+    boundary
+
+  - Docker runtime validation
+  - systemd validation
+  - Windows service validation
+  - Automated certificate enrollment or fleet-wide
+    rotation
+
+  - Coordinator failover and connection-level DoS
+    controls
+
+  The implementation is a substantially hardened
+  RC2 candidate, but it should not be promoted as
+  fully production-validated until the external
+  acceptance run documented in DEPLOYMENT.md is
+  completed.
+
+─ Worked for 40m 13s ─────────────────────────────
