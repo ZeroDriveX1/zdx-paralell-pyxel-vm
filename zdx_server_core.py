@@ -138,13 +138,13 @@ class ZDXServer:
                 response["artifact_token"] = self.artifacts.grant(task.task_id, task.artifact_digest, message.peer_id)
             self._send(conn, ZDXMessage(kind="compute_task", payload=response))
         elif message.kind == "compute_result":
-            self.compute.complete(message.peer_id, str(payload["task_id"]), payload.get("result", {}))
+            self.compute.complete(message.peer_id, str(payload["task_id"]), payload.get("result", {}), lease_id=payload.get("lease_id"))
             self._send(conn, ZDXMessage(kind="compute_ack", payload={"operation": "complete", "accepted": True}))
         elif message.kind == "compute_release":
-            self.compute.release(message.peer_id, str(payload["task_id"]), str(payload.get("reason", "resource policy")))
+            self.compute.release(message.peer_id, str(payload["task_id"]), str(payload.get("reason", "resource policy")), lease_id=payload.get("lease_id"))
             self._send(conn, ZDXMessage(kind="compute_ack", payload={"operation": "release", "accepted": True}))
         elif message.kind == "compute_fail":
-            self.compute.fail(message.peer_id, str(payload["task_id"]), str(payload.get("error", "worker failure")))
+            self.compute.fail(message.peer_id, str(payload["task_id"]), str(payload.get("error", "worker failure")), lease_id=payload.get("lease_id"))
             self._send(conn, ZDXMessage(kind="compute_ack", payload={"operation": "fail", "accepted": True}))
 
     def handle_client(self, conn, address):

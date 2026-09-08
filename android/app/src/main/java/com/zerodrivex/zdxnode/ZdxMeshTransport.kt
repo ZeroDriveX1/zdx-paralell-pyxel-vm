@@ -93,16 +93,22 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
             .put("cpu_count", cpuCount).put("cpu_percent", cpuPercent)
     )
 
-    fun release(taskId: String, reason: String): JSONObject = request(
-        "compute_release", JSONObject().put("task_id", taskId).put("reason", reason)
+    fun release(taskId: String, reason: String, leaseId: String? = null): JSONObject = request(
+        "compute_release", JSONObject().put("task_id", taskId).put("reason", reason).also {
+            if (!leaseId.isNullOrBlank()) it.put("lease_id", leaseId)
+        }
     )
 
-    fun fail(taskId: String, error: String): JSONObject = request(
-        "compute_fail", JSONObject().put("task_id", taskId).put("error", error.take(4_000))
+    fun fail(taskId: String, error: String, leaseId: String? = null): JSONObject = request(
+        "compute_fail", JSONObject().put("task_id", taskId).put("error", error.take(4_000)).also {
+            if (!leaseId.isNullOrBlank()) it.put("lease_id", leaseId)
+        }
     )
 
-    fun complete(taskId: String, result: JSONObject): JSONObject = request(
-        "compute_result", JSONObject().put("task_id", taskId).put("result", result)
+    fun complete(taskId: String, result: JSONObject, leaseId: String? = null): JSONObject = request(
+        "compute_result", JSONObject().put("task_id", taskId).put("result", result).also {
+            if (!leaseId.isNullOrBlank()) it.put("lease_id", leaseId)
+        }
     )
 
     /** Resume a private checkpoint and verify the final SHA-256 before returning it. */

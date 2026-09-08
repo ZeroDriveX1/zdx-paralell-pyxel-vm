@@ -41,16 +41,16 @@ class ComputeCoordinator(_CoreCoordinator):
         key = f"{task.get('task_id')}:{worker_id}:{len(self._state['contributions'])}"
         self._state["contributions"][key] = record
 
-    def complete(self, worker_id, task_id, result):
+    def complete(self, worker_id, task_id, result, lease_id=None):
         running = self._state.get("running", {}).get(task_id)
-        super().complete(worker_id, task_id, result)
+        super().complete(worker_id, task_id, result, lease_id=lease_id)
         if running:
             self._record(running["task"], worker_id, result, "verified", 1, 8)
             self._save()
 
-    def fail(self, worker_id, task_id, error):
+    def fail(self, worker_id, task_id, error, lease_id=None):
         running = self._state.get("running", {}).get(task_id)
-        super().fail(worker_id, task_id, error)
+        super().fail(worker_id, task_id, error, lease_id=lease_id)
         if running:
             self._record(running["task"], worker_id, {}, "failed", 0, -2, error)
             self._save()

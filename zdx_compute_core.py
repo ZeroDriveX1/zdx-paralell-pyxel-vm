@@ -84,11 +84,13 @@ class ComputeTask:
 class ComputeCoordinator:
     """Persistent task queue with worker leases and RAM admission checks."""
 
-    def __init__(self, state_path: str = ".zdx/compute_state.json", lease_seconds: int = 300):
+    def __init__(self, state_path: str = ".zdx/compute_state.json", lease_seconds: int = 300, max_attempts: int = 5):
         self.state_path = Path(state_path)
         self.lease_seconds = max(1, lease_seconds)
+        self.max_attempts = max(1, int(max_attempts))
         self._lock = threading.RLock()
         self._state = self._load()
+        self._state.setdefault("attempts", {})
 
     def _load(self) -> dict:
         if not self.state_path.exists():
@@ -100,6 +102,8 @@ class ComputeCoordinator:
             for name in ("queued", "running", "completed", "failed", "workers"):
                 if not isinstance(state.get(name), dict):
                     raise ValueError(f"compute state field {name} must be an object")
+            if "attempts" in state and not isinstance(state["attempts"], dict):
+                raise ValueError("compute state field attempts must be an object")
             return state
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             raise RuntimeError(f"invalid compute state {self.state_path}: {exc}") from exc
@@ -124,6 +128,7 @@ class ComputeCoordinator:
             if any(task.task_id in self._state[name] for name in ("queued", "running", "completed", "failed")):
                 raise ValueError(f"task already exists: {task.task_id}")
             self._state["queued"][task.task_id] = task.to_dict()
+            self._state["attempts"][task.task_id] = 0
             self._save()
         return task
 
@@ -151,60 +156,101 @@ class ComputeCoordinator:
                     continue
                 del self._state["queued"][task.task_id]
                 now = time.time()
+                attempts = int(self._state["attempts"].get(task.task_id, 0)) + 1
+                lease_id = str(uuid.uuid4())
+                task.metadata = {**task.metadata, "lease_id": lease_id}
+                self._state["attempts"][task.task_id] = attempts
                 self._state["running"][task.task_id] = {
                     "task": task.to_dict(), "worker_id": worker_id, "leased_at": now,
                     "lease_until": now + min(self.lease_seconds, task.max_seconds),
+                    "lease_id": lease_id, "attempts": attempts,
                 }
                 self._save()
                 return task
             self._save()
             return None
 
-    def complete(self, worker_id: str, task_id: str, result: dict) -> None:
+    def complete(self, worker_id: str, task_id: str, result: dict, lease_id: Optional[str] = None) -> None:
         if len(json.dumps(result, separators=(",", ":")).encode("utf-8")) > MAX_RESULT_BYTES:
             raise ValueError("task result exceeds maximum size")
         with self._lock:
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")
+            self._validate_lease_locked(running, lease_id)
             self._state["running"].pop(task_id)
+            self._state["attempts"].pop(task_id, None)
             self._state["completed"][task_id] = {
                 "task": running["task"], "worker_id": worker_id, "completed_at": time.time(), "result": result,
             }
             self._save()
 
-    def release(self, worker_id: str, task_id: str, reason: str) -> None:
+    def release(self, worker_id: str, task_id: str, reason: str, lease_id: Optional[str] = None) -> None:
         with self._lock:
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")
+            self._validate_lease_locked(running, lease_id)
             task = dict(running["task"])
             task["metadata"] = {**task.get("metadata", {}), "last_release_reason": reason}
+            task["metadata"].pop("lease_id", None)
+            attempts = int(self._state["attempts"].get(task_id, running.get("attempts", 1)))
             self._state["running"].pop(task_id)
-            self._state["queued"][task_id] = task
+            if attempts >= self.max_attempts:
+                self._state["failed"][task_id] = {
+                    "task": task, "worker_id": worker_id, "failed_at": time.time(),
+                    "error": str(reason), "attempts": attempts,
+                }
+                self._state["attempts"].pop(task_id, None)
+            else:
+                self._state["queued"][task_id] = task
             self._save()
 
-    def fail(self, worker_id: str, task_id: str, error: str) -> None:
+    def fail(self, worker_id: str, task_id: str, error: str, lease_id: Optional[str] = None) -> None:
         with self._lock:
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")
+            self._validate_lease_locked(running, lease_id)
             self._state["running"].pop(task_id)
+            attempts = int(self._state["attempts"].get(task_id, running.get("attempts", 1)))
+            self._state["attempts"].pop(task_id, None)
             self._state["failed"][task_id] = {
                 "task": running["task"], "worker_id": worker_id, "failed_at": time.time(), "error": str(error),
+                "attempts": attempts,
             }
             self._save()
 
     def status(self) -> dict:
         with self._lock:
-            self._requeue_expired_locked()
+            if self._requeue_expired_locked():
+                self._save()
             return json.loads(json.dumps(self._state))
 
-    def _requeue_expired_locked(self) -> None:
+    def _validate_lease_locked(self, running: dict, lease_id: Optional[str]) -> None:
+        expected = running.get("lease_id")
+        if lease_id is not None and expected != lease_id:
+            raise ValueError("stale or invalid lease")
+
+    def _requeue_expired_locked(self) -> bool:
         now = time.time()
+        changed = False
         for task_id in [key for key, record in self._state["running"].items() if record["lease_until"] <= now]:
             record = self._state["running"].pop(task_id)
-            self._state["queued"][task_id] = record["task"]
+            attempts = int(self._state["attempts"].get(task_id, record.get("attempts", 1)))
+            task = dict(record["task"])
+            task["metadata"] = dict(task.get("metadata", {}))
+            task["metadata"].pop("lease_id", None)
+            if attempts >= self.max_attempts:
+                self._state["failed"][task_id] = {
+                    "task": task, "worker_id": record["worker_id"], "failed_at": now,
+                    "error": "lease expired", "attempts": attempts,
+                }
+                self._state["attempts"].pop(task_id, None)
+            else:
+                self._state["queued"][task_id] = task
+            changed = True
+        return changed
 
 
 def execute_task(task: ComputeTask) -> dict:

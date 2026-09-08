@@ -67,6 +67,7 @@ class NodeService : Service() {
 
     private fun runMeshCycle(settings: MeshSettings) {
         var taskId = ""
+        var leaseId: String? = null
         val nodeTransport = ZdxMeshTransport(this, settings.transportConfig())
         transport = nodeTransport
         try {
@@ -90,31 +91,32 @@ class NodeService : Service() {
             }
             val task = rawTask as? JSONObject ?: throw IOException("poll task is malformed")
             taskId = task.optString("task_id")
+            leaseId = task.optJSONObject("metadata")?.optString("lease_id")?.takeIf { it.isNotBlank() }
             val digest = task.optString("artifact_digest")
             val memoryMb = task.optInt("memory_mb", Int.MAX_VALUE)
             if (taskId.isBlank() || digest.isBlank()) throw IOException("Android requires an artifact-backed task")
             if (!admission.canRun(policy) || memoryMb > policy.memoryLimitMb) {
-                nodeTransport.release(taskId, "Android resource policy rejected task")
+                nodeTransport.release(taskId, "Android resource policy rejected task", leaseId)
                 updateStatus(true, "task released by resource policy")
                 return
             }
             updateStatus(true, "receiving $taskId")
             val artifact = nodeTransport.receiveArtifact(taskId, digest) { admission.canRun(policyStore.load()) }
             val result = taskExecutor.execute(task, artifact, policyStore.load())
-            nodeTransport.complete(taskId, AndroidResultAttestor(this).attest(result))
+            nodeTransport.complete(taskId, AndroidResultAttestor(this).attest(result), leaseId)
             updateStatus(true, "completed $taskId")
             artifact.delete()
         } catch (_: ZdxMeshPreemptedException) {
-            if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, "Android became busy or stopped charging")
+            if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, "Android became busy or stopped charging", leaseId)
             updateStatus(false, "task yielded to device workload")
         } catch (cancelled: AndroidVmExecutionCancelledException) {
-            if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, cancelled.message ?: "Android execution cancelled")
+            if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, cancelled.message ?: "Android execution cancelled", leaseId)
             updateStatus(false, "task yielded to device workload")
         } catch (timeout: AndroidVmExecutionTimeoutException) {
-            if (taskId.isNotBlank()) safeFail(nodeTransport, taskId, timeout.message ?: "Android execution timed out")
+            if (taskId.isNotBlank()) safeFail(nodeTransport, taskId, timeout.message ?: "Android execution timed out", leaseId)
             updateStatus(true, "task failed: execution timeout")
         } catch (unsupported: UnsupportedOperationException) {
-            if (taskId.isNotBlank()) safeFail(nodeTransport, taskId, unsupported.message ?: "unsupported Android execution")
+            if (taskId.isNotBlank()) safeFail(nodeTransport, taskId, unsupported.message ?: "unsupported Android execution", leaseId)
             updateStatus(true, "task rejected: Android VM adapter unavailable")
         } catch (error: Exception) {
             // Keep the lease recoverable on transport/device failure; the coordinator will expire it.
@@ -127,12 +129,12 @@ class NodeService : Service() {
         }
     }
 
-    private fun safeRelease(nodeTransport: ZdxMeshTransport, taskId: String, reason: String) {
-        try { nodeTransport.release(taskId, reason.take(4_000)) } catch (_: Exception) { }
+    private fun safeRelease(nodeTransport: ZdxMeshTransport, taskId: String, reason: String, leaseId: String?) {
+        try { nodeTransport.release(taskId, reason.take(4_000), leaseId) } catch (_: Exception) { }
     }
 
-    private fun safeFail(nodeTransport: ZdxMeshTransport, taskId: String, reason: String) {
-        try { nodeTransport.fail(taskId, reason.take(4_000)) } catch (_: Exception) { }
+    private fun safeFail(nodeTransport: ZdxMeshTransport, taskId: String, reason: String, leaseId: String?) {
+        try { nodeTransport.fail(taskId, reason.take(4_000), leaseId) } catch (_: Exception) { }
     }
 
     private fun updateStatus(connected: Boolean, message: String) {

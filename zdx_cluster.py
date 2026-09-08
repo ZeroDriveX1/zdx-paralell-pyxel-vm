@@ -145,19 +145,33 @@ class ReplicatedClusterState:
                 elif kind == "lease_claim" and task_id and task_id in queued:
                     running[task_id] = {"task": queued.pop(task_id), **{key: payload[key] for key in ("worker_id", "lease_id", "lease_until")}}
                 elif kind == "lease_release" and task_id and task_id in running:
-                    queued[task_id] = running.pop(task_id)["task"]
-                elif kind == "task_complete" and task_id:
-                    record = running.pop(task_id, {"task": payload.get("task", {})})
-                    completed[task_id] = {**record, **payload}
-                    queued.pop(task_id, None)
-                elif kind == "task_fail" and task_id:
-                    record = running.pop(task_id, {"task": payload.get("task", {})})
-                    failed[task_id] = {**record, **payload}
-                    queued.pop(task_id, None)
+                    record = running[task_id]
+                    if self._lease_matches(record, payload.get("lease_id")):
+                        queued[task_id] = running.pop(task_id)["task"]
+                elif kind == "task_complete" and task_id and task_id in running:
+                    record = running[task_id]
+                    if self._lease_matches(record, payload.get("lease_id")):
+                        completed[task_id] = {**running.pop(task_id), **payload}
+                        queued.pop(task_id, None)
+                elif kind == "task_fail" and task_id and task_id in running:
+                    record = running[task_id]
+                    if self._lease_matches(record, payload.get("lease_id")):
+                        failed[task_id] = {**running.pop(task_id), **payload}
+                        queued.pop(task_id, None)
                 elif kind == "contribution":
                     contribution_id = payload.get("contribution_id") or operation["operation_id"]
                     contributions[contribution_id] = dict(payload)
             return {"queued": queued, "running": running, "completed": completed, "failed": failed, "contributions": contributions}
+
+    @staticmethod
+    def _lease_matches(record: dict, lease_id: Optional[str]) -> bool:
+        expected = record.get("lease_id")
+        return lease_id == expected if expected else lease_id in (None, "")
+
+    def _require_live_lease(self, task_id: str, lease_id: str) -> None:
+        record = self.materialized()["running"].get(task_id)
+        if record is None or not self._lease_matches(record, lease_id):
+            raise ValueError("stale or invalid lease")
 
     def queue_task(self, task: dict, origin: str) -> str:
         if not isinstance(task, dict) or not task.get("task_id"):
@@ -175,14 +189,17 @@ class ReplicatedClusterState:
         return None
 
     def release_task(self, task_id: str, lease_id: str, reason: str, origin: str) -> str:
+        self._require_live_lease(task_id, lease_id)
         return self.append("lease_release", {"task_id": task_id, "lease_id": lease_id, "reason": reason}, origin)
 
     def complete_task(self, task_id: str, lease_id: str, result: dict, verification_result: str, origin: str) -> str:
         if len(_canonical(result).encode("utf-8")) > 1024 * 1024:
             raise ValueError("task result exceeds maximum size")
+        self._require_live_lease(task_id, lease_id)
         return self.append("task_complete", {"task_id": task_id, "lease_id": lease_id, "result": result, "verification_result": verification_result}, origin)
 
     def fail_task(self, task_id: str, lease_id: str, error: str, origin: str) -> str:
+        self._require_live_lease(task_id, lease_id)
         return self.append("task_fail", {"task_id": task_id, "lease_id": lease_id, "error": str(error)}, origin)
 
     def record_contribution(self, contribution: Contribution, origin: str) -> str:

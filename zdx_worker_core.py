@@ -105,9 +105,10 @@ class ZDXComputeWorker:
         if raw_task is None:
             return {"status": "idle", "reason": "no task available"}
         task = ComputeTask.from_dict(raw_task)
+        lease_id = task.metadata.get("lease_id")
         allowed, reason = policy.admit(snapshot, task.memory_mb, self.protected_processes)
         if not allowed:
-            self.node.request(self.sock, ZDXMessage(kind="compute_release", payload={"task_id": task.task_id, "reason": reason}))
+            self.node.request(self.sock, ZDXMessage(kind="compute_release", payload={"task_id": task.task_id, "reason": reason, "lease_id": lease_id}))
             return {"status": "released", "task_id": task.task_id, "reason": reason}
         temporary_path = None
         try:
@@ -116,7 +117,7 @@ class ZDXComputeWorker:
                 task.frame_path = temporary_path
             result = execute_task(task)
         except Exception as exc:
-            self.node.request(self.sock, ZDXMessage(kind="compute_fail", payload={"task_id": task.task_id, "error": str(exc)}))
+            self.node.request(self.sock, ZDXMessage(kind="compute_fail", payload={"task_id": task.task_id, "error": str(exc), "lease_id": lease_id}))
             return {"status": "failed", "task_id": task.task_id, "error": str(exc)}
         finally:
             if temporary_path:
@@ -124,7 +125,7 @@ class ZDXComputeWorker:
                     os.unlink(temporary_path)
                 except FileNotFoundError:
                     pass
-        self.node.request(self.sock, ZDXMessage(kind="compute_result", payload={"task_id": task.task_id, "result": result}))
+        self.node.request(self.sock, ZDXMessage(kind="compute_result", payload={"task_id": task.task_id, "result": result, "lease_id": lease_id}))
         return {"status": "completed", "task_id": task.task_id}
 
     def run_forever(self) -> None:

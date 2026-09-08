@@ -1,12 +1,12 @@
 # Android build and reproducibility evidence
 
-Captured: 2026-09-07 UTC
+Captured: 2026-09-08 UTC
 
 ## Provenance
 
-- HEAD commit: `9097d709fbbdde61452b858aca78c962a89eeeb8`
+- HEAD commit: `1774487bebdeb8a19963350671f3950fc615fa26`
 - Worktree: **NOT CLEAN**. After removing generated Android cache/build
-  directories, 63 modified/untracked entries remained. No reset, stash, or
+  directories, 11 modified/untracked entries remained. No reset, stash, or
   commit was performed because those changes belong to the user.
 - Toolchain details: [ANDROID_TOOLCHAIN.txt](ANDROID_TOOLCHAIN.txt)
 
@@ -37,7 +37,7 @@ Final debug evidence artifact:
 
 ```text
 release/zdx-node-1.0.0-debug.apk
-SHA-256: 3481e8919d6aec068184b5cf843f9e89eeb8286e96c0f27deafe87299af4fb5f
+SHA-256: 9112e8f273187a7e23d1dc16fc20664da944f79706a5eda20567cc1461fa6151
 ```
 
 APK inspection confirmed package `com.zerodrivex.zdxnode`, min SDK 26,
@@ -47,16 +47,26 @@ integrity-probe adapter classes. The project does not contain a Pyxel VM
 adapter; its source and documentation intentionally fail closed for ordinary
 Pyxel tasks.
 
+## Lease and retry safety
+
+The supplied six-check lease probe passed: unique lease IDs are issued at
+claim time, stale leases are rejected after requeue/reclaim, explicit release
+and lease expiry retire poison tasks at `max_attempts`, and legacy running
+records without lease IDs remain compatible. The default attempt cap is 5;
+tests override it where needed. Lease IDs are propagated through Python and
+Android completion, release, and failure messages. The replicated cluster ledger also rejects stale terminal events. Permanent
+coverage is in `test_compute_leases.py`.
+
 ## UI and background status
 
-The control surface was rebuilt with live capability and service status refresh, explicit idle-only and charging policy controls, mesh distribution settings, and a “Dismiss and run in background” action. The foreground notification is ongoing, expandable, and tappable to reopen settings. When the endpoint is incomplete it reports `mesh not configured`; connection failures are reported as `mesh unavailable: ... (with the socket error detail).
+The control surface was rebuilt with live capability and service status refresh, explicit idle-only and charging policy controls, mesh distribution settings, and a “Dismiss and run in background” action. The foreground notification is ongoing, expandable, and tappable to reopen settings. When the endpoint is incomplete it reports `mesh not configured`; connection failures are reported as `mesh unavailable: ...` (with the socket error detail).
 
 ## Python regression
 
 The isolated startup test passed on rerun, followed by the full suite:
 
 ```text
-121 passed in 0.87s
+127 passed in 4.53s
 ```
 
 ## Release status
@@ -66,7 +76,7 @@ Signed release APK:
 
 ```text
 release/zdx-node-1.0.0-release.apk
-SHA-256: f466e2aabd981635a60a7717eecff8abc7f209322f65fe96b3be9e43b51fb2e3
+SHA-256: bb532556403cbcc69d9f55be6e0d2134d13b468d42daa327bff365ba2d91a799
 copied to: /home/zdxadmin/zdx-node-1.0.0-release.apk
 ```
 
