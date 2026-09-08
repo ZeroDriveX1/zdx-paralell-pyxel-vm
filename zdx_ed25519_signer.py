@@ -42,6 +42,31 @@ except ImportError:
     HAS_CRYPTOGRAPHY = False
 
 
+def verify_ed25519_signature(
+    public_key_pem: str, payload: dict, signature_b64: str
+) -> bool:
+    """Verify a canonical JSON payload with an Ed25519 public key.
+
+    This stateless helper is used by the transport admission path. Keeping the
+    public-key lookup outside this function means an unauthenticated message
+    cannot create per-peer replay or rate-limit state.
+    """
+    if not HAS_CRYPTOGRAPHY:
+        return False
+
+    try:
+        message = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        public_key = serialization.load_pem_public_key(
+            public_key_pem.encode("utf-8"),
+            backend=default_backend(),
+        )
+        signature_bytes = base64.b64decode(signature_b64, validate=True)
+        public_key.verify(signature_bytes, message.encode("utf-8"))
+        return True
+    except Exception:
+        return False
+
+
 @dataclass
 class Ed25519KeyPair:
     """Ed25519 public/private keypair."""
@@ -200,25 +225,9 @@ class ZDXEd25519Signer:
         if peer_id not in self._peer_public_keys:
             return False
 
-        try:
-            # Canonicalize payload
-            message = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-
-            # Load peer's public key
-            public_key = serialization.load_pem_public_key(
-                self._peer_public_keys[peer_id].encode(),
-                backend=default_backend(),
-            )
-
-            # Decode signature
-            signature_bytes = base64.b64decode(signature_b64)
-
-            # Verify
-            public_key.verify(signature_bytes, message.encode())
-            return True
-
-        except Exception as e:
-            return False
+        return verify_ed25519_signature(
+            self._peer_public_keys[peer_id], payload, signature_b64
+        )
 
     def verify_self_signature(self, payload: dict, signature_b64: str) -> bool:
         """

@@ -1,0 +1,28 @@
+ZDX Android build toolchain
+===========================
+
+Captured: 2026-09-07 UTC
+
+JDK: OpenJDK 17.0.20 (2026-07-21), /usr/lib/jvm/java-17-openjdk-amd64
+Gradle: 8.7, /home/zdx/toolchains/gradle-8.7
+Android Gradle Plugin: 8.5.2
+Kotlin Gradle Plugin: 2.0.21
+Android command-line tools: 12.0
+Android SDK platform: android-35, revision 2
+Android SDK build-tools: 35.0.0
+Android SDK platform-tools: 37.0.1
+compileSdk: 35
+minSdk: 26
+targetSdk: 35
+applicationId: com.zerodrivex.zdxnode
+
+Gradle invocation used for reproducibility pass:
+  --no-daemon --max-workers=1
+  -Dkotlin.compiler.execution.strategy=in-process
+  -Dkotlin.incremental=false -Dorg.gradle.parallel=false
+
+Signing material:
+  keystore: /home/zdx/signing/zdx-release.jks
+  environment secret: /home/zdx/signing/zdx-release-keystore.env
+  permissions: 0600 for both files; directory 0700
+  certificate SHA-256: 76:75:D7:1B:E0:D2:F6:94:AE:9E:F4:33:81:79:2B:C2:37:EC:8A:40:28:7F:68:CB:E9:45:2B:32:41:91:0C:A6

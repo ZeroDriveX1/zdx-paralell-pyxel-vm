@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Run one election-aware, gossip-enabled ZDX cluster service node."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+
+def _runtime_path() -> Path:
+    here = Path(__file__).resolve()
+    candidates = [here.parent.parent, Path("/opt/zdx")]
+    for candidate in candidates:
+        if (candidate / "zdx_server.py").is_file():
+            return candidate
+    raise RuntimeError("cannot locate the installed ZDX runtime")
+
+
+sys.path.insert(0, str(_runtime_path()))
+
+from zdx_ed25519_signer import ZDXEd25519Signer
+from zdx_server import ZDXServer
+from zdx_tls import server_context
+
+
+def endpoint(value: str) -> tuple[str, int]:
+    host, separator, raw_port = value.rpartition(":")
+    if not separator or not host or not raw_port.isdigit():
+        raise argparse.ArgumentTypeError("endpoint must be host:port")
+    return host, int(raw_port)
+
+
+def trusted_peer(value: str) -> tuple[str, str]:
+    node_id, separator, path = value.partition("=")
+    if not separator or not node_id or not path:
+        raise argparse.ArgumentTypeError("trusted peer must be node-id=/path/to/public-key.pem")
+    return node_id, Path(path).read_text(encoding="utf-8")
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="ZDX karmic cluster server")
+    parser.add_argument("--node-id", required=True)
+    parser.add_argument("--cluster-id", default="default")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--state-dir", default="/var/lib/zdx-worker/server")
+    parser.add_argument("--cert-file", required=True)
+    parser.add_argument("--key-file", required=True)
+    parser.add_argument("--ca-file", required=True)
+    parser.add_argument("--require-client-certificate", action="store_true")
+    parser.add_argument("--gossip-peer", action="append", type=endpoint, default=[])
+    parser.add_argument("--trusted-peer", action="append", type=trusted_peer, default=[])
+    args = parser.parse_args(argv)
+    state = Path(args.state_dir)
+    state.mkdir(parents=True, exist_ok=True)
+    signer = ZDXEd25519Signer(args.node_id, str(state / "keys"))
+    tls = server_context(args.cert_file, args.key_file, cafile=args.ca_file,
+                         require_client_certificate=args.require_client_certificate)
+    server = ZDXServer(
+        host=args.host, port=args.port, require_auth=True,
+        trusted_peers=dict(args.trusted_peer), signer=signer, tls_context=tls,
+        state_path=str(state / "node_state.json"), compute_state_path=str(state / "compute_state.json"),
+        artifact_root=str(state / "artifacts"), node_id=args.node_id, cluster_id=args.cluster_id,
+        karma_path=str(state / "karma.json"), cluster_state_path=str(state / "cluster_state.json"),
+        gossip_peers=args.gossip_peer,
+    )
+    server.serve()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

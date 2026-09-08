@@ -1,0 +1,4 @@
+include packaging/systemd/zdx-worker.service
+include packaging/install.sh
+include packaging/zdxctl
+include packaging/release_manifest.py

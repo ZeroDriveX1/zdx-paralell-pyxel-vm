@@ -6,5 +6,6 @@ package com.zerodrivex.zdxnode
 enum class NodeMode {
     LIGHT,
     COMPUTE,
+    COMPUTE_IDLE_ONLY,
     SYNC
 }

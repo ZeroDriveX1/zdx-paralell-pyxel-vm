@@ -1,0 +1,27 @@
+[Unit]
+Description=ZDX idle-safe distributed compute worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zdx-worker
+Group=zdx-worker
+WorkingDirectory=/var/lib/zdx-worker
+EnvironmentFile=-/etc/zdx-worker/worker.env
+Environment=ZDX_PRODUCTION_GUARD=/var/lib/zdx-worker/production_busy
+ExecStart=/usr/bin/python3 /opt/zdx/zdx_worker.py run --coordinator-host ${ZDX_COORDINATOR_HOST} --coordinator-port ${ZDX_COORDINATOR_PORT} --node-id ${ZDX_NODE_ID} --key-path /var/lib/zdx-worker/keys --config /var/lib/zdx-worker/resource_policy.json --ca-file ${ZDX_CA_FILE}
+Restart=always
+RestartSec=5
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/zdx-worker
+CPUQuota=25%
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

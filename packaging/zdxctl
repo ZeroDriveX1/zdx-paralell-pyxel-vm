@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SERVICE=zdx-worker.service
+STATE=${ZDX_STATE_DIR:-/var/lib/zdx-worker}; CONFIG=${ZDX_CONFIG_DIR:-/etc/zdx-worker}; PREFIX=${ZDX_PREFIX:-/opt/zdx}
+if [[ -f "$CONFIG/worker.env" ]]; then
+  set -a
+  . "$CONFIG/worker.env"
+  set +a
+fi
+case "${1:-status}" in
+  status)
+    systemctl --no-pager --full status "$SERVICE" || true
+    echo "capability profile:"; /usr/bin/python3 -m json.tool "$STATE/capability_profile.json" 2>/dev/null || echo "not generated"
+    echo "resource cgroup:"; systemctl show "$SERVICE" -p CPUQuotaPerSecUSec -p MemoryHigh -p MemoryMax -p TasksMax 2>/dev/null || true
+    echo "policy:"; /usr/bin/python3 "$PREFIX/zdx_worker.py" policy show --config "$STATE/resource_policy.json"
+    ;;
+  capabilities) /usr/bin/python3 "$PREFIX/zdx_capabilities.py" --node-id "${ZDX_NODE_ID:-$(hostname -s)-zdx}" --output "$STATE/capability_profile.json" ;;
+  start) systemctl start "$SERVICE" ;;
+  stop) systemctl stop "$SERVICE" ;;
+  restart) systemctl restart "$SERVICE" ;;
+  enable) /usr/bin/python3 "$PREFIX/zdx_worker.py" policy enable --config "$STATE/resource_policy.json"; systemctl start "$SERVICE" ;;
+  disable) /usr/bin/python3 "$PREFIX/zdx_worker.py" policy disable --config "$STATE/resource_policy.json" ;;
+  policy) shift; /usr/bin/python3 "$PREFIX/zdx_worker.py" policy "$@" --config "$STATE/resource_policy.json" ;;
+  logs) journalctl -u "$SERVICE" --no-pager -n "${2:-100}" ;;
+  update) SCRIPT=${2:-}; [[ -n "$SCRIPT" ]] || { echo "usage: zdxctl update /path/to/packaging/install.sh" >&2; exit 2; }; systemctl stop "$SERVICE" || true; "$SCRIPT" ;;
+  uninstall) systemctl disable --now "$SERVICE" || true; rm -f /etc/systemd/system/$SERVICE /usr/local/bin/zdxctl /usr/local/bin/zdx-server; rm -rf /etc/systemd/system/zdx-worker.service.d; systemctl daemon-reload; echo "service removed; state retained at $STATE" ;;
+  *) echo "usage: zdxctl {status|capabilities|start|stop|restart|enable|disable|policy|logs|update|uninstall}" >&2; exit 2 ;;
+esac

@@ -1,6 +1,35 @@
 """
 # ZDX Parallel Pyxel VM - Changelog
 
+## [Unreleased] - Distributed Compute and Resource-Safe Workers
+
+- Added a persistent, memory-aware coordinator queue for verified PNG frame
+  execution.
+- Added authenticated worker registration, task leasing, result/failure
+  records, and a signed submit/poll protocol.
+- Added disabled-by-default persistent worker policy with idle-only admission,
+  minimum free RAM, charging, protected-process, and production guard controls.
+- Added the `zdx_worker.py` background daemon/CLI and systemd service template
+  with host-level CPU, memory, niceness, and I/O limits.
+- Added Android persisted resource settings and foreground-service admission
+  checks for idle-only and charging-aware participation.
+- Documented that cross-machine RAM is represented as reservations, not raw RAM
+  sharing, and that artifact transfer/TLS/complete Android packaging remain
+  open production gates.
+
+## [Unreleased] - Authenticated Transport Integration
+
+- Added opt-in Ed25519-signed network envelopes covering message metadata and
+  payloads.
+- Integrated enrollment, revocation, replay protection, and per-peer rate
+  limiting into `ZDXServer(require_auth=True)`.
+- Added strict protocol envelope validation and focused transport regression
+  tests.
+- Made the package implementation the sole `zdx_node` import path by removing
+  the redundant top-level module.
+- Kept unsigned transport explicitly available for local development; TLS,
+  persistent enrollment, and workload authorization remain open work.
+
 ## [0.3.0] - 2026-07-21 - Security & Governance Foundation
 
 ### MAJOR: DoS-Resistant Authentication Pipeline ✅ COMPLETE
