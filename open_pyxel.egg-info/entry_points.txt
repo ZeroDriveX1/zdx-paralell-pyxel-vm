@@ -1,0 +1,4 @@
+[console_scripts]
+zdx = zdx_cli:main
+zdx-mission = zdx_mission_cli:main
+zdx-worker = zdx_worker:main

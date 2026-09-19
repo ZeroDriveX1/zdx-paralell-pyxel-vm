@@ -1,0 +1,33 @@
+{
+  "stress": {
+    "backup_files": 1,
+    "checksum_present": true,
+    "commits_per_second": 49.86466021392979,
+    "completed_commits": 1000,
+    "elapsed_seconds": 20.054282847006107,
+    "final_generation": 999,
+    "metrics": {
+      "counters": {
+        "persistence_commits": 1000
+      },
+      "gauges": {},
+      "latencies": {
+        "commit_latency": {
+          "average_seconds": 0.011667557775537716,
+          "count": 1000,
+          "max_seconds": 0.047382076998474076
+        }
+      },
+      "resources": {
+        "active_threads": 1,
+        "max_rss_kib": 89816,
+        "open_file_descriptors": 5
+      },
+      "uptime_seconds": 22.811838538997108
+    },
+    "passed": true,
+    "requested_commits": 1000,
+    "schema_version": 1,
+    "temporary_files": 0
+  }
+}

@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: open-pyxel
+Version: 1.0.0rc2
+Summary: Parallel Pyxel VM — pixel-native virtual machine (open source)
+License-File: LICENSE
+Dynamic: license-file
+Dynamic: summary

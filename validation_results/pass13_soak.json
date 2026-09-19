@@ -1,0 +1,62 @@
+{
+  "soak": {
+    "backup_files": 16,
+    "backup_growth_after_warmup": 0,
+    "completed_iterations": 100,
+    "descriptor_growth": 0,
+    "elapsed_seconds": 24.869139616988832,
+    "iterations_per_second": 4.021047834388573,
+    "lock_file_growth_after_warmup": 0,
+    "lock_files": 17,
+    "memory_growth_bytes": 1706188,
+    "memory_peak_bytes": 2103830,
+    "metrics": {
+      "counters": {
+        "migrations": 100,
+        "persistence_commits": 1033
+      },
+      "gauges": {
+        "active_sessions": 0,
+        "connected_nodes": 0
+      },
+      "latencies": {
+        "commit_latency": {
+          "average_seconds": 0.012065215950155818,
+          "count": 1033,
+          "max_seconds": 0.042595076985890046
+        },
+        "scheduler_latency": {
+          "average_seconds": 0.0001168876574956812,
+          "count": 100,
+          "max_seconds": 0.00036184600321576
+        }
+      },
+      "resources": {
+        "active_threads": 1,
+        "max_rss_kib": 88632,
+        "open_file_descriptors": 5
+      },
+      "uptime_seconds": 25.786607001995435
+    },
+    "mode": "bounded",
+    "passed": true,
+    "requested_duration_seconds": null,
+    "requested_iterations": 100,
+    "resource_after": {
+      "active_threads": 1,
+      "max_rss_kib": 88632,
+      "open_file_descriptors": 5
+    },
+    "resource_before": {
+      "active_threads": 1,
+      "max_rss_kib": 88632,
+      "open_file_descriptors": 5
+    },
+    "scheduler_selections": {
+      "sched-15": 100
+    },
+    "schema_version": 1,
+    "stale_transactions": 0,
+    "thread_growth": 0
+  }
+}

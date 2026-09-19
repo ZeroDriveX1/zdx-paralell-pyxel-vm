@@ -1,0 +1,126 @@
+{
+  "benchmarks": {
+    "benchmarks": [
+      {
+        "iterations": 25,
+        "max_seconds": 0.0026221539883408695,
+        "mean_seconds": 0.0012073384388349951,
+        "name": "vm_execution",
+        "operations_per_second": 828.2681705760453,
+        "p50_seconds": 0.0010636919760145247,
+        "p95_seconds": 0.0018532310205046088,
+        "total_seconds": 0.030183460970874876
+      },
+      {
+        "iterations": 25,
+        "max_seconds": 0.035159692022716627,
+        "mean_seconds": 0.015745710763148964,
+        "name": "persistence_commit",
+        "operations_per_second": 63.50935915451881,
+        "p50_seconds": 0.015457537985639647,
+        "p95_seconds": 0.02449207700556144,
+        "total_seconds": 0.3936427690787241
+      },
+      {
+        "iterations": 250,
+        "max_seconds": 0.000296308018732816,
+        "mean_seconds": 6.349818699527532e-05,
+        "name": "scheduler_selection",
+        "operations_per_second": 15748.48113497172,
+        "p50_seconds": 4.546200216282159e-05,
+        "p95_seconds": 0.0001889999839477241,
+        "total_seconds": 0.01587454674881883
+      },
+      {
+        "iterations": 500,
+        "max_seconds": 1.3307988410815597e-05,
+        "mean_seconds": 1.0206142906099558e-06,
+        "name": "registry_lookup",
+        "operations_per_second": 979802.0752799415,
+        "p50_seconds": 9.229988791048527e-07,
+        "p95_seconds": 1.153995981439948e-06,
+        "total_seconds": 0.0005103071453049779
+      },
+      {
+        "iterations": 250,
+        "max_seconds": 0.004619384999386966,
+        "mean_seconds": 7.691412325948476e-05,
+        "name": "ed25519_sign",
+        "operations_per_second": 13001.513345296875,
+        "p50_seconds": 4.3692009057849646e-05,
+        "p95_seconds": 5.14610146638006e-05,
+        "total_seconds": 0.019228530814871192
+      },
+      {
+        "iterations": 250,
+        "max_seconds": 0.0008323850051965564,
+        "mean_seconds": 0.0001421849278267473,
+        "name": "ed25519_verify",
+        "operations_per_second": 7033.094261710373,
+        "p50_seconds": 0.00013699999544769526,
+        "p95_seconds": 0.00015538401203230023,
+        "total_seconds": 0.035546231956686825
+      },
+      {
+        "iterations": 25,
+        "max_seconds": 0.0006390000053215772,
+        "mean_seconds": 0.0001351723587140441,
+        "name": "png_serialization",
+        "operations_per_second": 7397.962198140605,
+        "p50_seconds": 6.6845997935161e-05,
+        "p95_seconds": 0.000524306989973411,
+        "total_seconds": 0.0033793089678511024
+      },
+      {
+        "iterations": 5,
+        "max_seconds": 0.03853638400323689,
+        "mean_seconds": 0.03257790760253556,
+        "name": "state_migration",
+        "operations_per_second": 30.69564848057244,
+        "p50_seconds": 0.03215815400471911,
+        "p95_seconds": 0.03853638400323689,
+        "total_seconds": 0.1628895380126778
+      },
+      {
+        "iterations": 25,
+        "max_seconds": 0.0006390769849531353,
+        "mean_seconds": 0.0004966429993510246,
+        "name": "coordinator_authenticated_dispatch",
+        "operations_per_second": 2013.5187676192438,
+        "p50_seconds": 0.0004910000134259462,
+        "p95_seconds": 0.0005935380177106708,
+        "total_seconds": 0.012416074983775616
+      }
+    ],
+    "generated_at_epoch": 1785446825.3202503,
+    "metrics": {
+      "counters": {
+        "migrations": 5,
+        "persistence_commits": 35
+      },
+      "gauges": {
+        "active_sessions": 1,
+        "connected_nodes": 0
+      },
+      "latencies": {
+        "commit_latency": {
+          "average_seconds": 0.010891714283830619,
+          "count": 35,
+          "max_seconds": 0.02626592299202457
+        },
+        "scheduler_latency": {
+          "average_seconds": 6.1031080782413486e-05,
+          "count": 250,
+          "max_seconds": 0.0002820770023390651
+        }
+      },
+      "resources": {
+        "active_threads": 1,
+        "max_rss_kib": 47724,
+        "open_file_descriptors": 5
+      },
+      "uptime_seconds": 1.915420385019388
+    },
+    "schema_version": 1
+  }
+}

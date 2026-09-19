@@ -1,0 +1,79 @@
+{
+  "metrics": {
+    "counters": {
+      "reflection_count": 1,
+      "successful_missions": 21
+    },
+    "gauges": {},
+    "latencies": {
+      "generation_latency": {
+        "average_seconds": 4.039923494149532e-05,
+        "count": 21,
+        "max_seconds": 9.43850027397275e-05
+      },
+      "mission_duration": {
+        "average_seconds": 0.012972468906636572,
+        "count": 21,
+        "max_seconds": 0.022784614993724972
+      },
+      "prompt_latency": {
+        "average_seconds": 0.00010697438015735575,
+        "count": 21,
+        "max_seconds": 0.0010470770066604018
+      },
+      "total_mission_latency": {
+        "average_seconds": 0.012972468906636572,
+        "count": 21,
+        "max_seconds": 0.022784614993724972
+      }
+    },
+    "resources": {
+      "active_threads": 1,
+      "max_rss_kib": 96348,
+      "open_file_descriptors": 4
+    },
+    "uptime_seconds": 1.6744510770076886
+  },
+  "mission_latency": {
+    "average_seconds": 0.0443917960539693,
+    "iterations": 20,
+    "max_seconds": 0.0662830000219401,
+    "operations_per_second": 22.526684858261888,
+    "p50_seconds": 0.045734577492112294,
+    "total_seconds": 0.887835921079386
+  },
+  "missions_per_minute": 1351.6010914957133,
+  "mode": "deterministic_provider",
+  "model": "deterministic:benchmark",
+  "persistence_overhead": {
+    "average_seconds": 0.03731052299990552,
+    "iterations": 20,
+    "max_seconds": 0.12047238397644833,
+    "operations_per_second": 26.802090123543227,
+    "p50_seconds": 0.033142423490062356,
+    "total_seconds": 0.7462104599981103
+  },
+  "provider_latency": {
+    "average_seconds": 4.896164609817788e-05,
+    "iterations": 20,
+    "max_seconds": 8.830698789097369e-05,
+    "operations_per_second": 20424.149915115195,
+    "p50_seconds": 3.765449218917638e-05,
+    "total_seconds": 0.0009792329219635576
+  },
+  "reflection_one_cycle_seconds": 0.02784861600957811,
+  "resources": {
+    "active_threads": 1,
+    "max_rss_kib": 96348,
+    "open_file_descriptors": 4
+  },
+  "scheduler_overhead": {
+    "average_seconds": 2.8046005172654987e-05,
+    "iterations": 20,
+    "max_seconds": 8.892299956642091e-05,
+    "operations_per_second": 35655.70190277957,
+    "p50_seconds": 2.2268504835665226e-05,
+    "total_seconds": 0.0005609201034530997
+  },
+  "schema_version": 1
+}
