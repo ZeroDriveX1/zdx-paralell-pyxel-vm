@@ -24,6 +24,17 @@ class ZDXNode:
     server_hostname: Optional[str] = None
     _next_sequence: int = field(default=1, init=False, repr=False)
 
+    def __new__(cls, *args, **kwargs):
+        session_options = {
+            "key_path", "credentials", "coordinator_id", "trust",
+            "capabilities", "tls_config", "allow_insecure",
+        }
+        if cls is ZDXNode and session_options.intersection(kwargs):
+            from .session_client import SessionZDXNode
+
+            return SessionZDXNode(*args, **kwargs)
+        return super().__new__(cls)
+
     def _prepare_message(self, message: ZDXMessage) -> ZDXMessage:
         if self.signer is None:
             return message

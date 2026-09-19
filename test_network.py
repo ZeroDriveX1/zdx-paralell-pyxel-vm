@@ -9,6 +9,7 @@ def test_message_roundtrip():
     decoded = ZDXMessage.decode(msg.encode()[4:])
     assert decoded.kind == "test"
     assert decoded.payload["value"] == 1
+    assert decoded.checksum == msg.checksum
 
 
 def test_frame_hash():

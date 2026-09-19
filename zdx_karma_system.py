@@ -31,6 +31,7 @@ Architecture:
 from __future__ import annotations
 
 import json
+from zdx_storage import StateStore
 import time
 import math
 from dataclasses import dataclass, field, asdict
@@ -604,7 +605,7 @@ class ZDXKarmaSystem:
             "saved_at": time.time(),
         }
 
-        self.persistence_path.write_text(json.dumps(data, indent=2))
+        StateStore(self.persistence_path, "karma-state").save(data)
 
     def load(self) -> None:
         """Load karma state from disk."""
@@ -612,7 +613,7 @@ class ZDXKarmaSystem:
             return
 
         try:
-            data = json.loads(self.persistence_path.read_text())
+            data = StateStore(self.persistence_path, "karma-state").load({})
 
             # Restore scores
             for node_id, score_dict in data.get("scores", {}).items():

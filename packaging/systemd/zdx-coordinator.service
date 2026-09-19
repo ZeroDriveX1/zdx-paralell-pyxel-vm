@@ -1,0 +1,20 @@
+[Unit]
+Description=ZeroDriveX coordinator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zdx
+Group=zdx
+EnvironmentFile=/etc/zdx/coordinator.env
+ExecStart=/usr/local/bin/zdx serve --port ${ZDX_PORT} --coordinator-key ${ZDX_COORDINATOR_KEY} --tls-ca ${ZDX_TLS_CA} --tls-cert ${ZDX_TLS_CERT} --tls-key ${ZDX_TLS_KEY}
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/zdx
+
+[Install]
+WantedBy=multi-user.target

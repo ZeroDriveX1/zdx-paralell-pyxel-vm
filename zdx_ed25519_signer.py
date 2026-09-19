@@ -32,6 +32,7 @@ import base64
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
+from zdx_storage import StateStore, atomic_write_secret
 
 try:
     from cryptography.hazmat.primitives import serialization, hashes
@@ -149,21 +150,39 @@ class ZDXEd25519Signer:
             key_version=1,
         )
 
-        # Persist
-        key_file.parent.mkdir(parents=True, exist_ok=True)
+        # Persist secret separately from checksummed metadata.
+        secret_file = key_file.with_suffix(".pem")
+        atomic_write_secret(secret_file, private_pem.encode())
         key_data = {
             "node_id": self._keypair.node_id,
-            "private_key_pem": self._keypair.private_key_pem,
             "public_key_pem": self._keypair.public_key_pem,
             "created_at": self._keypair.created_at,
             "key_version": self._keypair.key_version,
+            "secret_file": secret_file.name,
         }
-        key_file.write_text(json.dumps(key_data, indent=2))
+        StateStore(key_file, "ed25519-key-metadata").save(key_data)
 
     def _load_keypair(self, key_file: Path) -> None:
         """Load keypair from disk."""
-        key_data = json.loads(key_file.read_text())
-        self._keypair = Ed25519KeyPair(**key_data)
+        key_data = StateStore(key_file, "ed25519-key-metadata").load()
+        if "secret_file" in key_data:
+            private_pem = (key_file.parent / key_data["secret_file"]).read_text()
+            clean = {key: value for key, value in key_data.items() if key != "secret_file"}
+            self._keypair = Ed25519KeyPair(private_key_pem=private_pem, **clean)
+        else:
+            # Backward-compatible migration from the former plaintext keypair payload.
+            self._keypair = Ed25519KeyPair(**key_data)
+            atomic_write_secret(key_file.with_suffix(".pem"), self._keypair.private_key_pem.encode())
+            self._generate_metadata(key_file)
+
+    def _generate_metadata(self, key_file: Path) -> None:
+        StateStore(key_file, "ed25519-key-metadata").save({
+            "node_id": self._keypair.node_id,
+            "public_key_pem": self._keypair.public_key_pem,
+            "created_at": self._keypair.created_at,
+            "key_version": self._keypair.key_version,
+            "secret_file": key_file.with_suffix(".pem").name,
+        })
 
     def get_public_key_pem(self) -> str:
         """Get public key in PEM format (for sharing with peers)."""
@@ -257,11 +276,12 @@ class ZDXEd25519Signer:
             raise RuntimeError("Keypair not initialized")
 
         old_key_file = self.key_path / f"{self.node_id}.json"
-        backup_file = self.key_path / f"{self.node_id}.{int(time.time())}.bak"
+        backup_file = self.key_path / f"{self.node_id}.{int(time.time())}.pem.bak"
 
         # Backup old key
-        if old_key_file.exists():
-            backup_file.write_text(old_key_file.read_text())
+        secret_file = old_key_file.with_suffix(".pem")
+        if secret_file.exists():
+            atomic_write_secret(backup_file, secret_file.read_bytes())
 
         # Generate new key
         self._generate_keypair(old_key_file)

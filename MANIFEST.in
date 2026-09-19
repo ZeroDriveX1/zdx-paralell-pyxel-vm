@@ -2,3 +2,7 @@ include packaging/systemd/zdx-worker.service
 include packaging/install.sh
 include packaging/zdxctl
 include packaging/release_manifest.py
+include README.md LICENSE DEPLOYMENT.md OPERATIONS.md SECURITY_MODEL.md TEST_PLAN.md RELEASE_NOTES.md CHANGELOG.md Dockerfile docker-compose.example.yml
+recursive-include packaging *
+recursive-include examples *
+recursive-include zdx_migrations *.py

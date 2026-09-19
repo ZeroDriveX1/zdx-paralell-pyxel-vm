@@ -16,6 +16,18 @@ def _canonical(value) -> str:
 class ZDXServer(_chunked.ZDXServer):
     """Chunked/gossip server with complete replicated recovery and attestations."""
 
+    def __new__(cls, *args, **kwargs):
+        """Route the mutual-session API to its preserved implementation."""
+        session_options = {
+            "credentials", "trust", "session_ttl", "stale_after",
+            "tls_config", "allow_insecure",
+        }
+        if cls is ZDXServer and session_options.intersection(kwargs):
+            from zdx_session_server import SessionZDXServer
+
+            return SessionZDXServer(*args, **kwargs)
+        return super().__new__(cls)
+
     def _recover_from_cluster_state(self) -> None:
         super()._recover_from_cluster_state()
         materialized = self.cluster_state.materialized()

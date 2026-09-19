@@ -1,0 +1,7 @@
+services:
+  coordinator:
+    build: .
+    command: ["serve", "--port", "8765", "--coordinator-key", "/state/coordinator.pem", "--tls-ca", "/certs/ca.pem", "--tls-cert", "/certs/coordinator.pem", "--tls-key", "/certs/coordinator-key.pem"]
+    ports: ["8765:8765"]
+    volumes: ["./state:/state", "./certs:/certs:ro"]
+    restart: unless-stopped

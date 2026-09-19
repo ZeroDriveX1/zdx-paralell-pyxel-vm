@@ -14,8 +14,11 @@ Expected registry keys
                   .shared     : dict
                   .registers  : dict
 
-    "memory"  (optional) — any object with:
-                  remember(key: str, value: any) -> any
+    "memory"        (optional) — any object with:
+                        remember(key: str, value: any) -> any
+    "scheduler"     (mission)  — any object with:
+                        execute_mission(agent, mission) -> MissionResult
+    "mission_agent" (mission)  — agent accepted by the scheduler
 """
 
 from pyxel_registry import PyxelRegistry
@@ -37,6 +40,12 @@ class ZDXAgentRuntime:
 
     def __init__(self, registry: PyxelRegistry):
         self.registry = registry
+
+    def run_mission(self, mission: str):
+        """Execute a mission through registered scheduler and agent components."""
+        scheduler = self.registry.get("scheduler")
+        agent = self.registry.get("mission_agent")
+        return scheduler.execute_mission(agent, mission)
 
     def run(self, image_path: str) -> dict:
         """

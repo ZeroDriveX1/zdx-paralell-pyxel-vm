@@ -1,20 +1,7 @@
-"""Signed Open-Pyxel network message protocol definitions."""
+"""Compatibility aliases for the canonical ZDX network message."""
 
-from dataclasses import dataclass
-from typing import Any
+from zdx_network import ZDXMessage as NetworkMessage
 
-
-@dataclass(frozen=True)
-class NetworkMessage:
-    """Base authenticated network message."""
-
-    message_type: str
-    payload: dict[str, Any]
-    timestamp: int
-    sender_id: str
-    signature: str
-
-
-NODE_JOIN = "NODE_JOIN"
-TASK_ASSIGN = "TASK_ASSIGN"
-COMPUTE_PROOF = "COMPUTE_PROOF"
+NODE_JOIN = "identity"
+TASK_ASSIGN = "ack"
+COMPUTE_PROOF = "frame_manifest"

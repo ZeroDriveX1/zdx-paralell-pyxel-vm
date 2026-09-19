@@ -1,9 +1,9 @@
-"""Protocol compatibility helpers for Open-Pyxel nodes."""
+"""Compatibility helpers for the canonical ZDX protocol version."""
 
 from dataclasses import dataclass
+from zdx_network import PROTOCOL_VERSION
 
-
-CURRENT_PROTOCOL_VERSION = 1
+CURRENT_PROTOCOL_VERSION = PROTOCOL_VERSION
 
 
 @dataclass(frozen=True)
@@ -13,4 +13,4 @@ class VersionHandshake:
 
 
 def compatible(version: int) -> bool:
-    return version == CURRENT_PROTOCOL_VERSION
+    return version == PROTOCOL_VERSION

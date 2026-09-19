@@ -1,6 +1,9 @@
 """Deterministic capability-aware node selection for ZDX simulations."""
 
 from __future__ import annotations
+import time
+import threading
+from zdx_metrics import METRICS
 
 
 class ZDXScheduler:
@@ -12,16 +15,19 @@ class ZDXScheduler:
 
     def __init__(self):
         self.nodes: dict[str, dict] = {}
+        self._lock = threading.RLock()
 
     def register_node(self, node_id: str, capabilities: dict) -> None:
         if not isinstance(node_id, str) or not node_id:
             raise ValueError("node_id must be a non-empty string")
         if not isinstance(capabilities, dict):
             raise TypeError("capabilities must be a dictionary")
-        self.nodes[node_id] = dict(capabilities)
+        with self._lock:
+            self.nodes[node_id] = dict(capabilities)
 
     def remove_node(self, node_id: str) -> bool:
-        return self.nodes.pop(node_id, None) is not None
+        with self._lock:
+            return self.nodes.pop(node_id, None) is not None
 
     @staticmethod
     def _score(item: tuple[str, dict]) -> tuple[int, int, str]:
@@ -32,9 +38,25 @@ class ZDXScheduler:
             cpu_count = 0
         return accelerated, max(0, cpu_count), node_id
 
+    def execute_mission(self, agent, mission):
+        """Dispatch one local mission without holding the scheduler lock."""
+        started = time.perf_counter()
+        try:
+            execute = getattr(agent, "execute", None)
+            if not callable(execute):
+                raise TypeError("agent must provide execute(mission)")
+            return execute(mission)
+        finally:
+            METRICS.observe("mission_scheduler_latency", time.perf_counter() - started)
+
     def select_node(self):
         """Return ``(node_id, capabilities)`` or ``None`` when empty."""
-        if not self.nodes:
-            return None
-        node_id, capabilities = max(self.nodes.items(), key=self._score)
-        return node_id, dict(capabilities)
+        started = time.perf_counter()
+        try:
+            with self._lock:
+                if not self.nodes:
+                    return None
+                node_id, capabilities = max(self.nodes.items(), key=self._score)
+                return node_id, dict(capabilities)
+        finally:
+            METRICS.observe("scheduler_latency", time.perf_counter() - started)

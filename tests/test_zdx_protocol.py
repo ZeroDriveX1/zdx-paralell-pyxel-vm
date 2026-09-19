@@ -5,5 +5,6 @@ def test_protocol_envelope():
     sim = ZDXProtocolSimulator()
     message = sim.send("heartbeat", {"ok": True})
 
-    assert message["type"] == "heartbeat"
+    assert message.kind == "heartbeat"
+    assert message.payload == {"ok": True}
     assert sim.validate(message)

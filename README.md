@@ -36,6 +36,9 @@ only restrict the generated limits; they never grant unrestricted host use.
 
 ## Safety and security
 
+The preserved mutual-session transport and operations pass is documented in [`docs/session-security/README.md`](docs/session-security/README.md).
+
+
 Artifacts are immutable SHA-256-addressed blobs encrypted at rest with
 AES-GCM. Artifact reads require authenticated task-scoped grants. Production
 transport requires TLS plus Ed25519 peer admission. Workers do not execute

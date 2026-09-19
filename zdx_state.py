@@ -1,42 +1,38 @@
-"""
-Persistent state helpers for ZDX Pyxel nodes.
-
-Stores node metadata and peer observations locally so a node can restart
-without losing identity information.
-"""
-
-from __future__ import annotations
-
-import json
-from pathlib import Path
+"""Transactional persistent coordinator state."""
 from datetime import datetime, timezone
+from pathlib import Path
+from zdx_storage import StateStore
 
 
 class ZDXState:
     def __init__(self, path=".zdx/node_state.json"):
         self.path = Path(path)
-        self.data = self._load()
+        self.store = StateStore(self.path, "coordinator-state")
+        self.data = self.store.load(self._default())
 
-    def _load(self):
-        if self.path.exists():
-            return json.loads(self.path.read_text())
-        return {"created": self.now(), "peers": {}, "heartbeats": 0}
-
-    def now(self):
+    @staticmethod
+    def now():
         return datetime.now(timezone.utc).isoformat()
 
+    def _default(self):
+        return {"created": self.now(), "peers": {}, "heartbeats": 0}
+
     def save(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, indent=2))
+        self.store.save(self.data)
 
     def record_peer(self, address, identity):
-        self.data["peers"][str(address)] = {
-            "identity": identity,
-            "last_seen": self.now(),
-        }
-        self.save()
+        def update(data):
+            data = dict(data or self._default())
+            peers = dict(data.get("peers", {}))
+            peers[str(address)] = {"identity": identity, "last_seen": self.now()}
+            data["peers"] = peers
+            return data
+        self.data = self.store.update(update, self._default())
 
     def record_heartbeat(self):
-        self.data["heartbeats"] = self.data.get("heartbeats", 0) + 1
-        self.data["last_heartbeat"] = self.now()
-        self.save()
+        def update(data):
+            data = dict(data or self._default())
+            data["heartbeats"] = data.get("heartbeats", 0) + 1
+            data["last_heartbeat"] = self.now()
+            return data
+        self.data = self.store.update(update, self._default())

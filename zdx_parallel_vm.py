@@ -2,6 +2,7 @@ import argparse
 import json
 import math
 import os
+from zdx_storage import StateStore
 import random
 import sys
 
@@ -135,11 +136,8 @@ class ParallelPyxelVM:
     # ------------------------------------------------------------------
 
     def _load_shared(self):
-        if not os.path.exists(self.shared_path):
-            return
         try:
-            with open(self.shared_path, "r") as f:
-                data = json.load(f)
+            data = StateStore(self.shared_path, "vm-shared-memory").load({})
         except Exception as e:
             if self.debug:
                 print(f"[WARN] _load_shared: could not read '{self.shared_path}': {e}")
@@ -155,8 +153,7 @@ class ParallelPyxelVM:
 
     def _save_shared(self):
         try:
-            with open(self.shared_path, "w") as f:
-                json.dump(self.shared, f)
+            StateStore(self.shared_path, "vm-shared-memory").save(self.shared)
         except Exception as e:
             print(f"[WARN] _save_shared: failed to write '{self.shared_path}': {e}")
 
