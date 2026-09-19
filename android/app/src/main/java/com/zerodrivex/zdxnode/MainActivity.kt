@@ -125,17 +125,19 @@ class MainActivity : Activity() {
         actions.addView(button("Save settings", true) { saveSettings() })
         actions.addView(button("Start background service", false) {
             if (saveSettings()) {
-                startForegroundService(Intent(this, NodeService::class.java))
+                startForegroundService(Intent(this, NodeService::class.java).setAction(NodeService.ACTION_START))
                 setLocalStatus("Starting background service. You can dismiss this screen; the notification will remain.")
             }
         })
         actions.addView(button("Dismiss and run in background", false) {
             if (saveSettings()) {
-                startForegroundService(Intent(this, NodeService::class.java))
+                startForegroundService(Intent(this, NodeService::class.java).setAction(NodeService.ACTION_START))
                 finish()
             }
         })
         actions.addView(button("Stop background service", false) {
+            getSharedPreferences(NodeService.CONTROL_PREFS, MODE_PRIVATE).edit()
+                .putBoolean(NodeService.KEY_SERVICE_REQUESTED, false).commit()
             stopService(Intent(this, NodeService::class.java))
             setLocalStatus("Background service stopped.")
         })
@@ -172,6 +174,9 @@ class MainActivity : Activity() {
     }
 
     private fun setLocalStatus(message: String) {
+        getSharedPreferences("zdx_status", MODE_PRIVATE).edit()
+            .putBoolean("connected", false).putLong("last_update", System.currentTimeMillis())
+            .putString("message", message.take(200)).apply()
         statusView.text = message
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
