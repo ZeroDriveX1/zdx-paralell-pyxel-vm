@@ -293,5 +293,5 @@ def test_spatial_memory_is_binary_typed_not_json_text():
         store.write("answer", {"n": 42, "ok": True, "items": [1, 2, 3]})
         frame = SpatialFrame.open(path, store.layout)
         raw = frame.read_bytes(store.capacity_bytes)
-        assert raw.startswith(b"ZDXSPM1\\x00")
+        assert raw.startswith(b"ZDXSPM1\x00")
         assert b'{"answer"' not in raw
