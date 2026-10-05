@@ -1,7 +1,10 @@
 import pytest
 
 from pyxel_registry import PyxelRegistry
-from zdx_agent_memory_manager import MEMORY_ROOT_KEY
+from zdx_agent_memory_manager import (
+    MEMORY_ROOT_KEY,
+    MemoryNamespacePolicy,
+)
 from zdx_agent_runtime import ZDXAgentRuntime
 from zdx_agent_tool_gateway import (
     AgentToolPolicy,
@@ -371,4 +374,103 @@ def test_action_hash_rejects_float_arguments(tmp_path):
             arguments={"ratio": 0.5},
             idempotency_key="float",
         )
+    runtime.close()
+
+
+def test_gateway_rejects_evicting_safety_namespaces(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    runtime.memory_manager(
+        path,
+        policies={
+            "system": MemoryNamespacePolicy(
+                "system", max_bytes=8192, max_entries=64, eviction="reject"
+            ),
+            "tool_results": MemoryNamespacePolicy(
+                "tool_results", max_bytes=8192, max_entries=64, eviction="fifo"
+            ),
+        },
+    )
+    tools = ToolRegistry()
+    tools.register("store", lambda proposal: {"ok": True})
+
+    with pytest.raises(RuntimeError, match="must use reject eviction"):
+        runtime.tool_gateway(path, registry=tools, policy=_policy())
+
+    runtime.close()
+
+
+def test_corrupt_cached_result_fails_closed_instead_of_reusing(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    calls = []
+    tools = ToolRegistry()
+    tools.register("store", lambda proposal: calls.append(proposal) or {"ok": True})
+    gateway = runtime.tool_gateway(path, registry=tools, policy=_policy())
+
+    gateway.execute(
+        tool="store", operation="write",
+        resource="store://safe/a", arguments={"x": 1},
+        idempotency_key="corrupt-result",
+    )
+    proposal = gateway.propose(
+        tool="store", operation="write",
+        resource="store://safe/a", arguments={"x": 1},
+        idempotency_key="corrupt-result",
+    )
+    result_key = f"tool-result/{proposal.action_hash}"
+    memory_manager = runtime.memory_manager(path)
+    record = memory_manager.get("tool_results", result_key)
+    record["proposal"]["resource"] = "store://safe/other"
+    memory_manager.set("tool_results", result_key, record)
+
+    with pytest.raises(AmbiguousToolOutcomeError, match="does not match"):
+        gateway.execute(
+            tool="store", operation="write",
+            resource="store://safe/a", arguments={"x": 1},
+            idempotency_key="corrupt-result",
+        )
+
+    assert len(calls) == 1
+    runtime.close()
+
+
+def test_external_authorizer_exception_fails_closed(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    calls = []
+    tools = ToolRegistry()
+    tools.register("store", lambda proposal: calls.append(proposal) or {"ok": True})
+
+    def broken(_payload):
+        raise RuntimeError("authorizer unavailable")
+
+    gateway = runtime.tool_gateway(
+        path, registry=tools, policy=_policy(), external_authorizer=broken
+    )
+    with pytest.raises(ToolAuthorizationError, match="external authorizer failed"):
+        gateway.execute(
+            tool="store", operation="write",
+            resource="store://safe/a", idempotency_key="auth-failure",
+        )
+
+    assert calls == []
+    runtime.close()
+
+
+def test_action_hash_is_stable_across_argument_key_order(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    tools = ToolRegistry()
+    tools.register("store", lambda proposal: {})
+    gateway = runtime.tool_gateway(path, registry=tools, policy=_policy())
+
+    left = gateway.propose(
+        tool="store", operation="write", resource="store://safe/a",
+        arguments={"b": 2, "a": {"y": 4, "x": 3}},
+        idempotency_key="canonical",
+    )
+    right = gateway.propose(
+        tool="store", operation="write", resource="store://safe/a",
+        arguments={"a": {"x": 3, "y": 4}, "b": 2},
+        idempotency_key="canonical",
+    )
+
+    assert left.action_hash == right.action_hash
     runtime.close()
