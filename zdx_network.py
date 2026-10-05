@@ -46,7 +46,7 @@ MESSAGE_TYPES = frozenset({
     "artifact_download_ready", "artifact_transfer_cleanup",
     "artifact_transfer_ack", "cluster_state_push", "cluster_state_pull",
     "cluster_state_ack", "cluster_state_snapshot", "cluster_hello",
-    "rectification_request", "rectification_ack",
+    "rectification_request", "rectification_ack", "reattest_response", "reattest_ack",
 })
 HANDSHAKE_TYPES = frozenset({
     "session_hello", "session_challenge", "session_confirm", "session_ack",
