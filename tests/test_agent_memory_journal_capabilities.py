@@ -327,3 +327,63 @@ def test_capability_gateway_requires_abi_capability_region(tmp_path):
 def test_capability_grant_rejects_string_as_action_collection():
     with pytest.raises(TypeError, match="tuple/list"):
         CapabilityGrant("filesystem", "file.read")
+
+
+def test_capability_gateway_requires_provenance_region(tmp_path):
+    layout = SpatialLayout(
+        width=64,
+        height=32,
+        execution_rows=1,
+        regions=(
+            SpatialRegion("memory", 0, 1, 64, 20),
+            SpatialRegion("capabilities", 0, 21, 64, 11),
+        ),
+    )
+    path = str(tmp_path / "no-provenance.png")
+    SpatialCompiler(layout).compile([["HALT"]], path)
+    memory = ZDXAgentMemory(
+        agent_id="no-prov",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    registry = PyxelRegistry()
+    registry.register("vm", SpatialPyxelVM(layout=layout))
+    registry.register("memory", memory)
+    runtime = ZDXAgentRuntime(registry)
+    session = runtime.open_spatial_session(path)
+    gateway = AgentCapabilityGateway([
+        CapabilityGrant("filesystem", ("file.read",)),
+    ])
+
+    with pytest.raises(ValueError, match="provenance region"):
+        session.install_capability_gateway(gateway)
+    runtime.close(flush=False)
+
+
+def test_corrupt_provenance_denies_capability_decision(tmp_path):
+    layout, _path, _memory, runtime, session = _session(tmp_path)
+    gateway = AgentCapabilityGateway([
+        CapabilityGrant("filesystem", ("file.read",)),
+    ])
+    session.install_capability_gateway(gateway)
+    session.record_event("test.marker", b"before-corruption")
+
+    region = layout.region("provenance")
+    raw = bytearray(session.frame.read_bytes(region.capacity_bytes, region="provenance"))
+    needle = b"before-corruption"
+    offset = raw.find(needle)
+    assert offset > 0
+    raw[offset] ^= 0x01
+    session.frame.write_bytes(raw, region="provenance")
+    session.mark_dirty(ROLE_PROVENANCE)
+
+    decision = session.decide_action(
+        capability="filesystem",
+        action="file.read",
+        arguments={"path": "/safe/input"},
+    )
+    assert decision.status == "deny"
+    assert "provenance journal verification failed" in decision.reason
+    runtime.close(flush=False)
