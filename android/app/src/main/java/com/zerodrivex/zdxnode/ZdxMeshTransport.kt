@@ -112,7 +112,12 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
     )
 
     /** Resume a private checkpoint and verify the final SHA-256 before returning it. */
-    fun receiveArtifact(taskId: String, digest: String, shouldContinue: () -> Boolean = { true }): File {
+    fun receiveArtifact(
+        taskId: String,
+        digest: String,
+        shouldContinue: () -> Boolean = { true },
+        onProgress: (receivedBytes: Int, totalBytes: Int) -> Unit = { _, _ -> }
+    ): File {
         require(taskId.isNotBlank() && digest.matches(Regex("[0-9a-fA-F]{64}"))) { "invalid artifact identity" }
         val directory = File(context.filesDir, "zdx-downloads").apply { mkdirs() }
         val part = File(directory, "$taskId.part")
@@ -132,6 +137,7 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
                     part.delete(); metadataFile.delete(); offset = 0
                 }
                 saveCheckpoint(metadataFile, digest, size)
+                onProgress(offset, size)
                 RandomAccessFile(part, "rw").use { file ->
                     while (offset < size) {
                         if (!shouldContinue()) throw ZdxMeshPreemptedException()
@@ -147,6 +153,7 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
                         file.write(data)
                         file.fd.sync()
                         offset += data.size
+                        onProgress(offset, size)
                     }
                 }
                 check(part.length() == size.toLong() && sha256(part) == digest.lowercase()) {
