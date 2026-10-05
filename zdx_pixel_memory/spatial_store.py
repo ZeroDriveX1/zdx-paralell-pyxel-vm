@@ -120,6 +120,11 @@ def _encode_value(value) -> bytes:
     raise TypeError(f"unsupported spatial memory type: {type(value).__name__}")
 
 
+def encoded_value_size(value) -> int:
+    """Return deterministic binary size used by the spatial value codec."""
+    return len(_encode_value(value))
+
+
 def _decode_value(data: bytes, offset: int = 0):
     if offset >= len(data):
         raise ValueError("missing spatial value tag")
@@ -232,6 +237,11 @@ class SpatialPixelStore:
 
     def _lock(self) -> FileLock:
         return FileLock(self._lock_path, timeout=self.lock_timeout)
+
+    def encoded_document_size(self, values: dict) -> int:
+        if not isinstance(values, dict):
+            raise TypeError("spatial memory root must be a dictionary")
+        return _HEADER_SIZE + encoded_value_size(values)
 
     def _encode_document(self, values: dict, generation: int) -> bytes:
         payload = _encode_value(values)
