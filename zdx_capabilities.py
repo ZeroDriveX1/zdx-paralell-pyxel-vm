@@ -14,6 +14,14 @@ from pathlib import Path
 from zdx_resource_policy import ResourceSnapshot, current_resource_snapshot
 
 
+SPATIAL_VM_FEATURES = [
+    "spatial-png-v1",
+    "xy-addressing",
+    "rgb24-isa16",
+    "spatial-storage",
+]
+
+
 @dataclass
 class NodeCapabilities:
     node_id: str
@@ -62,13 +70,24 @@ def detect_capabilities(node_id: str | None = None, snapshot: ResourceSnapshot |
         cpu_count=snapshot.cpu_count,
         gpu=False,
         npu=False,
-        vm_features=["pyxel-vm", "frame-hash", "deterministic-execution", "encrypted-artifacts"],
+        vm_features=["pyxel-vm", "frame-hash", "deterministic-execution", "encrypted-artifacts", *SPATIAL_VM_FEATURES],
         memory_mb=snapshot.total_memory_mb,
         available_memory_mb=snapshot.available_memory_mb,
         recommended_memory_mb=limits["memory_limit_mb"],
         recommended_min_free_memory_mb=limits["min_free_memory_mb"],
         recommended_max_concurrent_tasks=limits["max_concurrent_tasks"],
     )
+
+
+def supports_required_features(capabilities, required_features) -> bool:
+    """Return whether a node advertises every required VM feature."""
+    if isinstance(capabilities, NodeCapabilities):
+        available = capabilities.vm_features
+    elif isinstance(capabilities, dict):
+        available = capabilities.get("vm_features", [])
+    else:
+        available = getattr(capabilities, "vm_features", [])
+    return set(required_features or []).issubset(set(available or []))
 
 
 def capability_message(node_id: str | None = None):
