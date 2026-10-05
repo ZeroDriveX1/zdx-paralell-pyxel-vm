@@ -100,3 +100,10 @@ A generic evaluator is fail-closed and cannot convert an `approval_required` gra
 ## Provenance limitations
 
 The in-frame provenance journal is bounded and hash chained. It detects retained-window corruption and records agent execution/mailbox/capability events, but it is not an append-only external audit service and cannot reconstruct history that has rolled out of the finite ring. Full deterministic crash replay requires a separate durable event/WAL layer.
+
+Capability authorization additionally requires a valid ABI `provenance` region.
+The retained journal is verified before capability decisions are prepared. The
+action envelope includes the SHA-256 identity of the exact installed capability
+manifest, so policy-table changes alter the action hash even when arguments and
+VM state are otherwise identical.
+
