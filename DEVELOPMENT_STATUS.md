@@ -69,3 +69,29 @@ A dedicated deterministic benchmark now separates resident raster execution from
 The benchmark deliberately excludes LLM/provider inference and network latency. These results demonstrate local VM/state-path gains only. The 65.4x difference between resident VM execution and the full same-frame checkpoint path also confirms that PNG persistence, not opcode execution, is currently the dominant local cost once a checkpoint is required.
 
 Machine-readable evidence is stored in `validation_results/spatial_resident_benchmark.json`; the reproducible harness is `zdx_spatial_benchmark.py`.
+
+## Android policy and work-console pass 17.0
+
+The Android node control surface now exposes the policy values actually enforced
+by admission: compute enablement, idle-only behavior, charging requirement,
+compute memory limit, and minimum free-memory reserve. Idle-only is based on
+whether the device is interactive rather than Android Doze mode. Android
+low-memory pressure is fail-closed.
+
+Policy is enforced before polling, on every artifact-transfer continuation,
+immediately before adapter execution, and from the adapter cancellation path
+while work is running. A policy change can therefore release/preempt a task
+instead of allowing an older admission snapshot to continue.
+
+A persistent bounded work-event console records node registration/polling and
+task lifecycle states: incoming, queued, receiving/download progress, running,
+outgoing result delivery, completed, released, failed, and transport errors.
+The live status panel shows current task/progress, last task and completed-work
+detail, policy eligibility reason, idle/charging state, free RAM, configured
+compute limit, and free-memory reserve.
+
+A dedicated GitHub Actions Android debug-build gate now compiles the Kotlin APK
+for Android-touching pull requests and uploads the debug APK as a workflow
+artifact. Device-runtime validation is still required for final release
+acceptance.
+
