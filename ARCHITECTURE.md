@@ -97,3 +97,15 @@ Native spatial mailboxes are bounded binary FIFO rings stored directly in ABI-bo
 Checkpoint barriers now use an internal monotonic snapshot ticket in addition to VM generation. This matters because mailbox/state mutations can occur without executing another VM instruction; an exact barrier waits for the specific frozen snapshot rather than merely observing that the same VM generation was previously committed.
 
 The next layers build on this foundation: namespaced/quota-aware memory, capability/tool authorization, replay/event journal, and dirty-region tracking.
+
+
+## Agent memory, provenance, capabilities, and dirty tracking
+
+The Agent ABI v1 foundation now has four additional resident services:
+
+- `AgentMemoryManager` provides logical persistent-memory namespaces with exact deterministic binary size accounting, explicit byte quotas, reject/FIFO policies, and canonical compaction. Persisted namespace metadata is strict and fails closed if key order, schema, or quota invariants are violated.
+- `SpatialEventJournal` provides a bounded rolling hash chain inside the ABI `provenance` region. It records sequence, VM generation, event type, payload, previous hash, and current hash. It is provenance for the retained window, not an unbounded replay log.
+- `AgentCapabilityGateway` is default-deny. Exact capability/action grants are stored and integrity-checked in the ABI `capabilities` region. Allowed action envelopes are bound to canonical argument hash, VM generation/checkpoint hash, and an exact durable PNG artifact SHA-256. The gateway authorizes/prepares actions; it never executes them.
+- `SpatialFrame` tracks conservative dirty rectangles and `SpatialAgentSession` tracks dirty ABI roles. Dirty state is cleared only when a frozen checkpoint snapshot is acknowledged. The current PNG checkpoint still performs a standards-valid full encode; partial/tiled PNG persistence is not implemented.
+
+Capability grants marked `approval_required` cannot be downgraded to allow by a generic evaluator. A future Axiomatic Runtime bridge will verify explicit approval artifacts against the state-bound action envelope before consequential tool execution.
