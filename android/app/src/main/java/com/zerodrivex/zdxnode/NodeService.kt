@@ -175,6 +175,7 @@ class NodeService : Service() {
             val elapsed = System.currentTimeMillis() - startedAt
             recordWork("OUTGOING", "sending result after ${elapsed}ms compute", taskId, "outgoing")
             nodeTransport.complete(taskId, AndroidResultAttestor(this).attest(result), leaseId)
+            saveLastTaskDetail(taskId, result, elapsed)
             recordWork("COMPLETED", "result acknowledged by coordinator · ${elapsed}ms", taskId, "outgoing")
             updateStatus(true, "completed $taskId · ${elapsed}ms", workState = "COMPLETED", taskId = taskId, terminal = true)
             artifact.delete()
@@ -216,6 +217,18 @@ class NodeService : Service() {
 
     private fun safeFail(nodeTransport: ZdxMeshTransport, taskId: String, reason: String, leaseId: String?) {
         try { nodeTransport.fail(taskId, reason.take(4_000), leaseId) } catch (_: Exception) { }
+    }
+
+    private fun saveLastTaskDetail(taskId: String, result: JSONObject, elapsedMs: Long) {
+        val adapter = result.optString("adapter_id").takeIf { it.isNotBlank() } ?: "unknown adapter"
+        val status = result.optString("status").takeIf { it.isNotBlank() } ?: "completed"
+        val completedWork = result.optInt("completed_work", 0)
+        val detail = "$status · $adapter · work=$completedWork · ${elapsedMs}ms"
+        getSharedPreferences("zdx_status", MODE_PRIVATE).edit()
+            .putString("last_task_id", taskId)
+            .putString("last_task_detail", detail.take(300))
+            .putLong("last_task_at", System.currentTimeMillis())
+            .apply()
     }
 
     private fun recordWork(type: String, message: String, taskId: String? = null, direction: String? = null) {
