@@ -80,3 +80,23 @@ compute lease, or override local compute policy.
 ## Resource-lease integrity
 
 Worker resource admission is cumulative across active leases. The coordinator subtracts RAM and thread reservations for the worker's running tasks and caps new claims against registered static/safe limits. A worker therefore cannot obtain multiple individually-valid leases that collectively exceed its advertised safe budget.
+
+
+## Pyxel-native agent authorization boundary
+
+The Agent Module now has a default-deny capability layer separate from VM execution. Grants contain exact capability/action names and may require explicit approval. The installed grant table is integrity-checked inside the ABI capability region before decisions are made.
+
+For an allowed static grant, the runtime forces an exact barrier checkpoint and binds the proposed action to:
+
+- canonical argument SHA-256;
+- VM generation;
+- VM checkpoint hash;
+- exact committed PNG artifact SHA-256.
+
+The resulting domain-separated action hash is suitable for a later Axiomatic Runtime approval artifact. The capability gateway does not invoke tools, shell commands, network operations, or arbitrary code itself.
+
+A generic evaluator is fail-closed and cannot convert an `approval_required` grant into `allow`. Explicit approval verification remains a separate future step.
+
+## Provenance limitations
+
+The in-frame provenance journal is bounded and hash chained. It detects retained-window corruption and records agent execution/mailbox/capability events, but it is not an append-only external audit service and cannot reconstruct history that has rolled out of the finite ring. Full deterministic crash replay requires a separate durable event/WAL layer.
