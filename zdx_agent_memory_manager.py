@@ -68,7 +68,7 @@ def default_memory_policies(capacity_bytes: int) -> tuple[MemoryNamespacePolicy,
         "working": (20, 128, "fifo"),
         "episodic": (25, 256, "fifo"),
         "facts": (25, 256, "reject"),
-        "tool_results": (20, 128, "fifo"),
+        "tool_results": (20, 128, "reject"),
         "system": (10, 64, "reject"),
     }
     policies = []
