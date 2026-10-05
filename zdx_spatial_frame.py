@@ -264,13 +264,16 @@ class SpatialFrame:
     """Mutable view over an RGB PNG using direct coordinate/cell addressing."""
 
     def __init__(self, image: Image.Image, layout: SpatialLayout):
-        rgb = image.convert("RGB")
-        if rgb.size != (layout.width, layout.height):
+        if image.mode != "RGB":
             raise ValueError(
-                f"frame size {rgb.size} does not match spatial layout "
+                f"spatial frame must be canonical RGB, got mode {image.mode!r}"
+            )
+        if image.size != (layout.width, layout.height):
+            raise ValueError(
+                f"frame size {image.size} does not match spatial layout "
                 f"{layout.width}x{layout.height}"
             )
-        self.image = rgb
+        self.image = image.copy()
         self.layout = layout
 
     @classmethod
