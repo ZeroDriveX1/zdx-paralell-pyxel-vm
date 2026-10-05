@@ -117,3 +117,21 @@ Non-barrier checkpoint requests coalesce to the newest pending generation. Barri
 
 A committed checkpoint also receives the SHA-256 of the exact PNG artifact. VM-state identity and PNG-artifact identity are deliberately separate so state lineage remains verifiable independently of PNG compression bytes.
 
+
+
+## Agent ABI v1 and native mailbox regions
+
+A spatial agent frame may bind named non-executable regions to semantic Agent ABI v1 roles. The ABI is stored with persistent agent state and includes a SHA-256 of the canonical `SpatialLayout`, preventing silent region rebinding across restart or migration.
+
+Current semantic roles are:
+
+- persistent memory;
+- working memory;
+- inbound mailbox;
+- outbound mailbox;
+- capabilities;
+- provenance.
+
+Inbound/outbound mailboxes use a bounded binary ring format inside their declared regions. Each message is sequence-bound and integrity-checked; queue overflow is explicit rather than spilling into adjacent raster state. Mailbox regions must be distinct from the persistent-memory region.
+
+`SpatialAgentSession` owns the resident frame containing those regions. A clean flush/close forces dirty resident state durable even if the normal 10-execution checkpoint interval has not been reached.
