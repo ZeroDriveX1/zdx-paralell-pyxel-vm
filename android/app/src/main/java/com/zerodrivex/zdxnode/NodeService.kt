@@ -180,21 +180,26 @@ class NodeService : Service() {
             artifact.delete()
         } catch (_: ZdxMeshPreemptedException) {
             if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, "Android became busy or stopped charging", leaseId)
-            updateStatus(false, "task yielded to device workload")
+            recordWork("RELEASED", "device became active or charging/policy changed", taskId.takeIf { it.isNotBlank() }, "outgoing")
+            updateStatus(false, "task yielded to device workload", workState = "RELEASED", taskId = taskId, terminal = true)
         } catch (cancelled: AndroidVmExecutionCancelledException) {
             if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, cancelled.message ?: "Android execution cancelled", leaseId)
-            updateStatus(false, "task yielded to device workload")
+            recordWork("RELEASED", cancelled.message ?: "execution cancelled by resource policy", taskId.takeIf { it.isNotBlank() }, "outgoing")
+            updateStatus(false, "task yielded to device workload", workState = "RELEASED", taskId = taskId, terminal = true)
         } catch (timeout: AndroidVmExecutionTimeoutException) {
             if (taskId.isNotBlank()) safeFail(nodeTransport, taskId, timeout.message ?: "Android execution timed out", leaseId)
-            updateStatus(true, "task failed: execution timeout")
+            recordWork("FAILED", timeout.message ?: "execution timeout", taskId.takeIf { it.isNotBlank() }, "outgoing")
+            updateStatus(true, "task failed: execution timeout", workState = "FAILED", taskId = taskId, terminal = true)
         } catch (unsupported: UnsupportedOperationException) {
             if (taskId.isNotBlank()) safeFail(nodeTransport, taskId, unsupported.message ?: "unsupported Android execution", leaseId)
-            updateStatus(true, "task rejected: Android VM adapter unavailable")
+            recordWork("FAILED", unsupported.message ?: "Android VM adapter unavailable", taskId.takeIf { it.isNotBlank() }, "outgoing")
+            updateStatus(true, "task rejected: Android VM adapter unavailable", workState = "FAILED", taskId = taskId, terminal = true)
         } catch (error: Exception) {
             retryDelayMs = (retryDelayMs * 2).coerceAtMost(MAX_RETRY_MS)
             // Keep the lease recoverable on transport/device failure; the coordinator will expire it.
             val detail = error.message?.replace(Regex("[\\r\\n]"), " ")?.trim()?.take(120).orEmpty()
-            updateStatus(false, "mesh unavailable: ${error.javaClass.simpleName}" + if (detail.isBlank()) "" else " ($detail)")
+            recordWork("ERROR", "${error.javaClass.simpleName}" + if (detail.isBlank()) "" else ": $detail", taskId.takeIf { it.isNotBlank() })
+            updateStatus(false, "mesh unavailable: ${error.javaClass.simpleName}" + if (detail.isBlank()) "" else " ($detail)", workState = "ERROR", taskId = taskId)
         } finally {
             nodeTransport.close()
             transport = null
@@ -213,10 +218,38 @@ class NodeService : Service() {
         try { nodeTransport.fail(taskId, reason.take(4_000), leaseId) } catch (_: Exception) { }
     }
 
-    private fun updateStatus(connected: Boolean, message: String) {
-        getSharedPreferences("zdx_status", MODE_PRIVATE).edit()
-            .putBoolean("connected", connected).putLong("last_update", System.currentTimeMillis())
-            .putString("message", message.take(200)).apply()
+    private fun recordWork(type: String, message: String, taskId: String? = null, direction: String? = null) {
+        workEvents.append(type, message, taskId, direction)
+    }
+
+    private fun updateStatus(
+        connected: Boolean,
+        message: String,
+        workState: String? = null,
+        taskId: String = "",
+        progress: Int? = null,
+        terminal: Boolean = false
+    ) {
+        val preferences = getSharedPreferences("zdx_status", MODE_PRIVATE)
+        val editor = preferences.edit()
+            .putBoolean("connected", connected)
+            .putLong("last_update", System.currentTimeMillis())
+            .putString("message", message.take(200))
+        if (workState != null) editor.putString("work_state", workState)
+        if (taskId.isNotBlank()) {
+            editor.putString("current_task_id", taskId)
+            if (terminal) {
+                editor.putString("last_task_id", taskId)
+                    .putString("last_task_state", workState ?: "")
+                    .putLong("last_task_at", System.currentTimeMillis())
+            }
+        }
+        if (progress != null) editor.putInt("progress", progress.coerceIn(0, 100))
+        if (terminal) {
+            editor.remove("current_task_id")
+            editor.remove("progress")
+        }
+        editor.apply()
         handler.post { getSystemService(NotificationManager::class.java)?.notify(1001, notification(message)) }
     }
 
