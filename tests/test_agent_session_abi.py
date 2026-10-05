@@ -275,3 +275,32 @@ def test_same_generation_mailbox_barrier_waits_for_exact_snapshot(tmp_path):
     persisted_box = SpatialMailbox(persisted_frame, "mailbox_out")
     assert persisted_box.peek().payload == b"same-generation-state"
     runtime.close()
+
+
+def test_spatial_frame_dirty_rectangles_are_defined_bounded_and_clone_safe():
+    layout = SpatialLayout(
+        width=16,
+        height=8,
+        execution_rows=1,
+        regions=(SpatialRegion("memory", 0, 1, 16, 7),),
+    )
+    frame = SpatialFrame.blank(layout)
+    assert frame.dirty_rectangles == ()
+
+    frame.write_cell(2, 2, (1, 2, 3))
+    assert frame.dirty_rectangles == ((2, 2, 3, 3),)
+
+    frame.write_cell(3, 2, (4, 5, 6))
+    assert frame.dirty_rectangles == ((2, 2, 4, 3),)
+
+    frame.write_bytes(b"abcdef", region="memory", offset=0)
+    for x0, y0, x1, y1 in frame.dirty_rectangles:
+        assert 0 <= x0 < x1 <= layout.width
+        assert 0 <= y0 < y1 <= layout.height
+
+    cloned = frame.clone()
+    assert cloned.dirty_rectangles == frame.dirty_rectangles
+
+    frame.clear_dirty_rectangles()
+    assert frame.dirty_rectangles == ()
+    assert cloned.dirty_rectangles != ()
