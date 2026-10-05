@@ -357,3 +357,17 @@ All code follows these standards:
 - Added corruption checks for schema/version, duplicate sequences, and regressed next-sequence metadata.
 - Added runtime/session accessors and regression coverage for persistence, atomic quota failure, FIFO eviction, capacity overflow, and policy integrity.
 
+## [Unreleased] - Pyxel-native Agent Tool Capability Gateway
+
+- Added exact-name `ToolRegistry` and versioned `AgentToolPolicy`.
+- Added canonical `zdx-agent-action-v1` identities bound to action, idempotency key, VM generation/checkpoint, and policy hash.
+- Added exact tool/operation/resource-prefix grants and fail-closed default denial.
+- Added optional external/Axiomatic authorizer contract with mandatory action/policy hash binding.
+- Added durable pre-action intent and post-action result barriers.
+- Added idempotent result replay for same action identity and intentional-repeat support via distinct idempotency keys.
+- Added ambiguous-outcome state for handler or post-execution persistence failures.
+- Changed default `tool_results` memory policy to reject-on-full; gateway refuses evicting safety namespaces.
+- Added persisted intent/result proposal validation before reuse.
+- Rejected floating-point tool arguments at the canonical action-hash boundary.
+- Added adversarial gateway regression coverage for authorization, idempotency, ambiguity, persistence, external decisions, and record corruption.
+
