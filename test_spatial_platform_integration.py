@@ -38,11 +38,11 @@ def test_workload_manifest_infers_spatial_feature_requirement():
 def test_protocol_remains_v1_compatible_and_negotiates_spatial_feature():
     layout = SpatialLayout(width=32, height=16, execution_rows=2)
     descriptor = spatial_descriptor(layout)
-    message = envelope("workload", descriptor, features=[SPATIAL_PNG_FEATURE])
+    message = envelope("test", {"descriptor": descriptor})
 
     assert is_compatible(message)
-    assert message["features"] == [SPATIAL_PNG_FEATURE]
-    assert message["payload"]["layout"]["height"] == 16
+    assert message.payload["descriptor"]["feature"] == SPATIAL_PNG_FEATURE
+    assert message.payload["descriptor"]["layout"]["height"] == 16
 
 
 def test_node_capability_advertises_spatial_vm_support():
