@@ -214,6 +214,7 @@ class MainActivity : Activity() {
         val currentTask = status.getString("current_task_id", null)
         val lastTask = status.getString("last_task_id", null)
         val lastTaskState = status.getString("last_task_state", null)
+        val lastTaskDetail = status.getString("last_task_detail", null)
         val progress = if (status.contains("progress")) status.getInt("progress", 0) else null
 
         statusView.text = message
@@ -233,6 +234,7 @@ class MainActivity : Activity() {
             if (!lastTask.isNullOrBlank()) {
                 append("\nLast task: ").append(lastTask)
                 if (!lastTaskState.isNullOrBlank()) append(" · ").append(lastTaskState)
+                if (!lastTaskDetail.isNullOrBlank()) append("\nLast work: ").append(lastTaskDetail)
             }
             append("\nPolicy: ").append(if (policyBlock == null) "eligible" else "paused · $policyBlock")
             append("\nIdle: ").append(if (snapshot.userIdle) "yes" else "no")
