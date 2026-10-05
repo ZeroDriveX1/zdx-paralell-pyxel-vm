@@ -106,36 +106,48 @@ class SpatialCheckpointManager:
         actual = checkpoint_hash_from_memory(values)
         if actual != checkpoint_hash:
             raise ValueError("VM checkpoint hash does not match frozen snapshot state")
-        with self._condition:
-            request_id = self._next_request_id
-            self._next_request_id += 1
-            self._last_submitted_request_id = request_id
-        request = SpatialCheckpointRequest(
-            request_id=request_id,
-            frame=frame.clone(),
-            values=copy.deepcopy(values),
-            generation=generation,
-            checkpoint_hash=checkpoint_hash,
-            barrier=bool(barrier),
-        )
+        frozen_frame = frame.clone()
+        frozen_values = copy.deepcopy(values)
         with self._condition:
             if self._closed:
                 raise RuntimeError("checkpoint manager is closed")
             if self._error is not None:
                 raise RuntimeError("checkpoint worker failed") from self._error
+
+            request_id = self._next_request_id
+            self._next_request_id += 1
+            request = SpatialCheckpointRequest(
+                request_id=request_id,
+                frame=frozen_frame,
+                values=frozen_values,
+                generation=generation,
+                checkpoint_hash=checkpoint_hash,
+                barrier=bool(barrier),
+            )
+
             if self._pending is None:
                 self._pending = request
             elif self._pending.barrier:
                 # Never skip an exact pending barrier. The caller must wait.
-                self._condition.wait_for(lambda: self._pending is None or self._error is not None)
+                self._condition.wait_for(
+                    lambda: self._pending is None
+                    or self._error is not None
+                    or self._closed
+                )
                 if self._error is not None:
                     raise RuntimeError("checkpoint worker failed") from self._error
+                if self._closed:
+                    raise RuntimeError("checkpoint manager is closed")
                 self._pending = request
             elif request.barrier:
                 # Replace an ordinary pending generation with the exact barrier.
                 self._pending = request
-            elif request.generation >= self._pending.generation:
+            elif request.generation < self._pending.generation:
+                raise ValueError("checkpoint generation cannot move backward")
+            else:
                 self._pending = request
+
+            self._last_submitted_request_id = request_id
             self._condition.notify_all()
 
         if barrier:
