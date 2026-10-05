@@ -202,3 +202,39 @@ def test_capability_table_tamper_fails_closed(tmp_path):
     assert decision.status == "deny"
     assert "verification failed" in decision.reason
     runtime.close(flush=False)
+
+
+def test_dirty_rectangle_tracking_is_conservative_and_cleared_on_checkpoint(tmp_path):
+    layout, _path, _memory, runtime, session = _session(tmp_path)
+    session.frame.clear_dirty()
+    assert session.dirty_rectangles == ()
+
+    session.frame.write_cell(10, 10, (1, 2, 3))
+    session.frame.write_cell(11, 10, (4, 5, 6))
+    bounds = session.frame.dirty_bounds
+    assert (bounds.x, bounds.y, bounds.width, bounds.height) == (10, 10, 2, 1)
+
+    session.send(b"dirty", sender="a", recipient="b")
+    assert session.dirty_rectangles
+    assert "mailbox_out" in session.dirty_roles
+    runtime.checkpoint(session.image_path, barrier=True)
+    assert session.dirty_rectangles == ()
+    assert session.dirty_roles == ()
+    runtime.close()
+
+
+def test_approval_required_cannot_be_downgraded_by_generic_evaluator(tmp_path):
+    _layout_value, _path, _memory, runtime, session = _session(tmp_path)
+    gateway = AgentCapabilityGateway(
+        [CapabilityGrant("network", ("http.get",), approval_required=True)],
+        evaluator=lambda _envelope, _grant: True,
+    )
+    session.install_capability_gateway(gateway)
+    decision = session.decide_action(
+        capability="network",
+        action="http.get",
+        arguments={"url": "https://example.invalid"},
+    )
+    assert decision.status == "approval_required"
+    assert decision.allowed is False
+    runtime.close()
