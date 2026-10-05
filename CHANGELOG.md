@@ -368,6 +368,9 @@ All code follows these standards:
 - Added ambiguous-outcome state for handler or post-execution persistence failures.
 - Changed default `tool_results` memory policy to reject-on-full; gateway refuses evicting safety namespaces.
 - Added persisted intent/result proposal validation before reuse.
+- Added public proposal recomputation against active VM generation/checkpoint/policy state.
+- Added bounded action argument depth/item/string limits and immutable policy collections.
+- Successful actions now compact the temporary pending intent after the durable result is recorded; ambiguous intents remain retained.
 - Rejected floating-point tool arguments at the canonical action-hash boundary.
 - Added adversarial gateway regression coverage for authorization, idempotency, ambiguity, persistence, external decisions, and record corruption.
 
