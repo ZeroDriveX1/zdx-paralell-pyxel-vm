@@ -463,7 +463,7 @@ class SpatialPyxelVM(ParallelPyxelVM):
         """
         if frame.layout != self.layout:
             raise ValueError("resident spatial frame layout does not match VM layout")
-        arr = np.array(frame.image, dtype=np.uint8, copy=False)
+        arr = np.asarray(frame.image, dtype=np.uint8)
         next_frame = self._execute_array(arr, source_label="<resident-spatial-frame>")
         if next_frame is not None:
             if self.max_chain <= 1:
