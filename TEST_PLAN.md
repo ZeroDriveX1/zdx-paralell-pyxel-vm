@@ -118,4 +118,7 @@ The gate intentionally does not substitute for physical Android-device testing, 
 - Verify policy mismatch after restart fails closed.
 - Verify canonical action hashes are stable across mapping key order and reject
   floating-point arguments.
+- Verify action argument depth/item/string limits fail before handler execution.
+- Verify forged/stale public proposals are rejected after action-hash and VM-state recomputation.
+- Verify policy rule collections are immutable tuples.
 
