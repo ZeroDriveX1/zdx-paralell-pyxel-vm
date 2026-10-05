@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import threading
@@ -103,7 +104,7 @@ class SpatialCheckpointManager:
             raise ValueError("VM checkpoint hash does not match frozen snapshot state")
         request = SpatialCheckpointRequest(
             frame=frame.clone(),
-            values=json.loads(json.dumps(values, sort_keys=True)),
+            values=copy.deepcopy(values),
             generation=generation,
             checkpoint_hash=checkpoint_hash,
             barrier=bool(barrier),
