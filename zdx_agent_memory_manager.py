@@ -171,12 +171,13 @@ class SpatialAgentMemoryManager:
             raise ValueError("namespaced memory policies/namespaces must be objects")
         if set(policies) != set(namespaces):
             raise ValueError("namespaced memory policy and namespace sets differ")
+        seen_sequences = set()
+        max_sequence = 0
         for name, policy_raw in policies.items():
             MemoryNamespacePolicy.from_dict(name, policy_raw)
             bucket = namespaces[name]
             if not isinstance(bucket, dict) or set(bucket) != {"entries"} or not isinstance(bucket["entries"], dict):
                 raise ValueError(f"memory namespace {name!r} has invalid structure")
-            seen_sequences = set()
             for key, record in bucket["entries"].items():
                 self._validate_key(key)
                 if not isinstance(record, dict) or set(record) != {"sequence", "value"}:
@@ -185,8 +186,11 @@ class SpatialAgentMemoryManager:
                 if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1:
                     raise ValueError(f"memory entry {name}/{key} has invalid sequence")
                 if sequence in seen_sequences:
-                    raise ValueError(f"memory namespace {name!r} contains duplicate sequences")
+                    raise ValueError("namespaced memory contains duplicate entry sequences")
                 seen_sequences.add(sequence)
+                max_sequence = max(max_sequence, sequence)
+        if max_sequence >= next_sequence:
+            raise ValueError("namespaced memory next_sequence does not follow persisted entries")
 
     @staticmethod
     def _validate_key(key: str) -> str:
@@ -332,8 +336,8 @@ class SpatialAgentMemoryManager:
         with self.session.locked():
             root = self._root()
             key = f"{root['next_sequence']:016x}"
-        self.set(namespace, key, value)
-        return key
+            self.set(namespace, key, value)
+            return key
 
     def delete(self, namespace: str, key: str) -> bool:
         self._require_namespace(namespace)
