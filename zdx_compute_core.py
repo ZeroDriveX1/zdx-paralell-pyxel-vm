@@ -74,12 +74,44 @@ class ComputeTask:
         if not isinstance(required, list) or any(not isinstance(item, str) or not item for item in required):
             raise ValueError("required_vm_features must be a list of non-empty strings")
         if execution_model == "spatial-png":
-            layout = self.metadata.get("spatial_layout")
-            if not isinstance(layout, dict):
+            from zdx_spatial_frame import (
+                SPATIAL_FRAME_VERSION,
+                SPATIAL_PNG_FEATURE,
+                SpatialLayout,
+            )
+            layout_raw = self.metadata.get("spatial_layout")
+            if not isinstance(layout_raw, dict):
                 raise ValueError("spatial-png task requires spatial_layout metadata")
-            if "spatial-png-v1" not in required:
-                required = [*required, "spatial-png-v1"]
-                self.metadata = {**self.metadata, "required_vm_features": required}
+            layout = SpatialLayout.from_dict(layout_raw)
+            spatial_version = self.metadata.get("spatial_version", SPATIAL_FRAME_VERSION)
+            if (
+                isinstance(spatial_version, bool)
+                or not isinstance(spatial_version, int)
+                or spatial_version != SPATIAL_FRAME_VERSION
+            ):
+                raise ValueError(
+                    f"unsupported spatial_version {spatial_version!r}; "
+                    f"expected {SPATIAL_FRAME_VERSION}"
+                )
+            if self.threads != layout.execution_rows:
+                raise ValueError(
+                    "spatial task threads must equal spatial_layout.execution_rows"
+                )
+            # Pillow + NumPy temporarily materialize multiple raster copies.
+            # Keep the declared frame comfortably inside the task memory lease.
+            raster_budget = layout.raw_capacity_bytes * 4
+            if raster_budget > self.memory_mb * 1024 * 1024:
+                raise ValueError(
+                    "spatial frame working-set estimate exceeds task memory_mb"
+                )
+            if SPATIAL_PNG_FEATURE not in required:
+                required = [*required, SPATIAL_PNG_FEATURE]
+            self.metadata = {
+                **self.metadata,
+                "spatial_version": SPATIAL_FRAME_VERSION,
+                "spatial_layout": layout.to_dict(),
+                "required_vm_features": required,
+            }
         return self
 
     @classmethod
