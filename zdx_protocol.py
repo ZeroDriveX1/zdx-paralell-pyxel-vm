@@ -2,8 +2,7 @@
 
 from zdx_network import PROTOCOL_VERSION, ZDXMessage
 
-SPATIAL_FRAME_VERSION = 1
-SPATIAL_PNG_FEATURE = "spatial-png-v1"
+from zdx_spatial_frame import SPATIAL_FRAME_VERSION, SPATIAL_PNG_FEATURE, SpatialLayout
 
 
 def envelope(message_type, payload=None, **authenticated_fields):
@@ -24,12 +23,9 @@ def spatial_descriptor(layout) -> dict:
         layout = layout.to_dict()
     if not isinstance(layout, dict):
         raise TypeError("layout must be a dict or expose to_dict()")
-    required = {"width", "height", "execution_rows"}
-    missing = sorted(required.difference(layout))
-    if missing:
-        raise ValueError(f"spatial layout missing required fields: {', '.join(missing)}")
+    canonical = SpatialLayout.from_dict(layout).to_dict()
     return {
         "feature": SPATIAL_PNG_FEATURE,
         "spatial_version": SPATIAL_FRAME_VERSION,
-        "layout": dict(layout),
+        "layout": canonical,
     }
