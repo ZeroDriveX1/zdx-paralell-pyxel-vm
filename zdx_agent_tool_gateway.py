@@ -258,6 +258,16 @@ class AgentToolGateway:
             raise RuntimeError(
                 f"tool gateway requires memory namespaces: {sorted(missing)}"
             )
+        memory_policies = self.memory.policies()
+        unsafe = [
+            name for name in sorted(required)
+            if memory_policies[name]["eviction"] != "reject"
+        ]
+        if unsafe:
+            raise RuntimeError(
+                "tool gateway safety namespaces must use reject eviction: "
+                + ", ".join(unsafe)
+            )
         persisted = self.memory.get("system", self.POLICY_MEMORY_KEY)
         policy_payload = {
             "policy": self.policy.to_dict(),
