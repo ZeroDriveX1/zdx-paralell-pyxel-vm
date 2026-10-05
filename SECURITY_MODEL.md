@@ -80,3 +80,33 @@ compute lease, or override local compute policy.
 ## Resource-lease integrity
 
 Worker resource admission is cumulative across active leases. The coordinator subtracts RAM and thread reservations for the worker's running tasks and caps new claims against registered static/safe limits. A worker therefore cannot obtain multiple individually-valid leases that collectively exceed its advertised safe budget.
+
+## Agent tool/action authority
+
+Pyxel-native agents do not receive an ambient tool execution capability. The
+tool gateway requires all of the following before a handler can run:
+
+- exact local handler registration;
+- exact policy grant for tool and operation;
+- resource-prefix match when the action carries a resource;
+- canonical action and policy hashes;
+- optional externally bound authorization;
+- durable pre-action intent for barrier-required capabilities.
+
+Tool results and intent records use non-evicting memory namespaces. The gateway
+refuses FIFO/evicting policy for those safety records because silently dropping
+old idempotency state could allow a repeated external side effect.
+
+Handler exceptions are classified as ambiguous external outcomes: the gateway
+persists that ambiguity when possible and will not automatically retry the same
+action identity. If a handler executes but result persistence fails, the
+gateway also fails as ambiguous instead of assuming success or retrying.
+
+External/Axiomatic authorizers must return a decision object bound to the exact
+`action_hash` and `policy_hash`. Authorizer errors, malformed responses,
+hash mismatches, deny, and approval-required all fail closed.
+
+This gateway does not claim full resident-spatial-state binding yet. Its action
+identity includes the VM generation/checkpoint hash; the planned provenance
+journal will bind broader resident state and event lineage.
+
