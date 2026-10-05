@@ -27,6 +27,8 @@ class MainActivity : Activity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var statusView: TextView
     private lateinit var capabilityView: TextView
+    private lateinit var workView: TextView
+    private lateinit var consoleView: TextView
 
     private val refreshUi = object : Runnable {
         override fun run() {
@@ -50,12 +52,27 @@ class MainActivity : Activity() {
         val idle = Switch(this).apply { isChecked = policy.idleOnly }
         val charging = Switch(this).apply { isChecked = policy.requireCharging }
         val meshEnabled = Switch(this).apply { isChecked = mesh.enabled }
+        val memoryLimit = edit("Compute memory limit (MB)", policy.memoryLimitMb.toString(), false).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+        val minFreeMemory = edit("Minimum free RAM to preserve (MB)", policy.minFreeMemoryMb.toString(), false).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
         val host = edit("Server or peer hostname", mesh.host, false)
         val port = edit("TLS port", mesh.port.toString(), false).apply { inputType = InputType.TYPE_CLASS_NUMBER }
         val ca = edit("Private CA certificate PEM", mesh.caCertificatePem, true)
 
-        statusView = TextView(this).apply { setTextSize(16f); setPadding(dp(16), dp(14), dp(16), dp(14)) }
+        statusView = TextView(this).apply { setTextSize(16f); setPadding(dp(8), dp(8), dp(8), dp(8)) }
         capabilityView = TextView(this).apply { setTextSize(15f); setTextColor(Color.rgb(55, 65, 81)) }
+        workView = TextView(this).apply { setTextSize(14f); setTextColor(Color.rgb(55, 65, 81)) }
+        consoleView = TextView(this).apply {
+            setTextSize(12f)
+            setTypeface(Typeface.MONOSPACE, Typeface.NORMAL)
+            setTextColor(Color.rgb(31, 41, 55))
+            setTextIsSelectable(true)
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = rounded(Color.rgb(248, 250, 252), 10)
+        }
 
         val root = ScrollView(this).apply { setBackgroundColor(Color.rgb(245, 247, 250)) }
         val content = LinearLayout(this).apply {
@@ -94,13 +111,27 @@ class MainActivity : Activity() {
 
         val status = section("Live service status")
         status.addView(statusView)
+        status.addView(workView)
         content.addView(status, margins())
+
+        val console = section("Work console")
+        console.addView(label("Incoming, queued, receiving, running, completed, released, failed, and outgoing work. Newest events appear at the bottom."))
+        console.addView(consoleView, fieldMargins())
+        console.addView(button("Clear console", false) {
+            WorkEventStore(this).clear()
+            refreshStatus()
+        })
+        content.addView(console, margins())
 
         val participation = section("Background participation")
         participation.addView(label("These controls protect the phone. Changes apply after saving."))
         addSwitch(participation, enabled, "Enable background compute", "Allow this node to receive authorized work.")
         addSwitch(participation, idle, "Only run while device is idle", "Recommended: wait until the screen is off and the device is idle.")
         addSwitch(participation, charging, "Require charging", "Never run compute while the phone is on battery.")
+        participation.addView(label("Compute memory limit"))
+        participation.addView(memoryLimit, fieldMargins())
+        participation.addView(label("Free-memory reserve kept available for Android and foreground apps"))
+        participation.addView(minFreeMemory, fieldMargins())
         addSwitch(participation, meshEnabled, "Join configured mesh", "Register capabilities and distribute authorized artifacts over TLS.")
         content.addView(participation, margins())
 
@@ -112,7 +143,17 @@ class MainActivity : Activity() {
         content.addView(meshSection, margins())
 
         fun saveSettings(): Boolean = try {
-            policyStore.save(policy.copy(enabled = enabled.isChecked, idleOnly = idle.isChecked, requireCharging = charging.isChecked))
+            val memoryLimitMb = memoryLimit.text.toString().toIntOrNull()
+                ?: throw IllegalArgumentException("compute memory limit must be an integer")
+            val minFreeMemoryMb = minFreeMemory.text.toString().toIntOrNull()
+                ?: throw IllegalArgumentException("minimum free memory must be an integer")
+            policyStore.save(policy.copy(
+                enabled = enabled.isChecked,
+                idleOnly = idle.isChecked,
+                requireCharging = charging.isChecked,
+                memoryLimitMb = memoryLimitMb,
+                minFreeMemoryMb = minFreeMemoryMb
+            ))
             meshStore.save(MeshSettings(host.text.toString(), port.text.toString().toIntOrNull() ?: 8765, meshEnabled.isChecked, ca.text.toString()))
             setLocalStatus("Settings saved. Start the background service when ready.")
             true
