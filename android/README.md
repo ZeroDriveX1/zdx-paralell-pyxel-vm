@@ -31,6 +31,14 @@ Those requests only enter the trust-review queue; they cannot directly change
 karma, quarantine, suspend, or revoke another node. The Android status panel
 shows the aggregate pending trust-review count.
 
+If the server marks this Android identity stale for authentication freshness,
+the ordinary support heartbeat can carry a short-lived re-attestation
+challenge. The app answers it automatically using the existing Android
+Keystore Ed25519 private key. This is permitted in sync/light support mode
+because it performs no Pyxel workload execution, artifact transfer, or compute
+lease. The console records the challenge and successful proof and the status
+panel shows the last lightweight re-auth time.
+
 ## Build a signed release APK
 
 The repository does not include the Gradle wrapper, Android SDK, release
