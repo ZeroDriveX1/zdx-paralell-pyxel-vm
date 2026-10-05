@@ -138,11 +138,14 @@ Each proposal has a canonical `zdx-agent-action-v1` SHA-256 identity bound to
 the exact action arguments, idempotency key, current VM generation/checkpoint
 hash, and canonical policy hash. Floating-point arguments are currently
 rejected at this security boundary; callers use integer units or canonical
-strings to avoid cross-language number canonicalization ambiguity.
+strings to avoid cross-language number canonicalization ambiguity. Canonical
+action input is also bounded by depth, item count, string size, and final
+serialized size before authorization.
 
 Consequential rules default to an exact durability barrier. The gateway first
 stores a pending intent and makes it durable, then calls the registered handler,
-then stores the result/executed intent and makes that state durable. A retry
+then stores the non-evicting result, removes the temporary pending intent, and
+makes that final state durable. Ambiguous intents are retained. A retry
 with the same state/action/idempotency key returns the durable prior result
 without re-executing. An intent without a reusable durable result is treated as
 an ambiguous outcome and fails closed.
