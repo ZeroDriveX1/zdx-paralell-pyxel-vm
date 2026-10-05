@@ -6,9 +6,18 @@ polls for leases, receives task artifacts in resumable chunks, verifies the
 final SHA-256, and reports bounded probe results or an explicit fail-closed
 unsupported-execution result.
 
-Compute is disabled by default. Idle-only, charging-required, free-memory
-admission, foreground-service controls, and immediate transfer yield protect
+Compute is disabled by default. Idle-only now means the device is not actively
+interactive (screen/user activity), rather than Android Doze mode. Charging,
+configured compute-memory limits, free-memory reserve, low-memory pressure,
+foreground-service controls, and immediate transfer/execution yield protect
 the device. Android device workloads always win.
+
+The app includes a persistent work console. It records connection/poll activity
+and task lifecycle states including incoming, queued, receiving/download
+progress, running, outgoing result submission, completed, released, failed, and
+transport errors. The live status area also shows the current task, last task,
+last completed-work summary, policy eligibility reason, charging/idle state,
+free RAM, compute memory limit, and preserved free-memory reserve.
 
 ## Build a signed release APK
 
@@ -52,11 +61,13 @@ In **ZDX Node**:
    and TLS port.
 3. Enable **Join configured ZDX mesh**, save, and confirm the device public key
    is enrolled on the cluster server.
-4. Keep **Enable compute**, **Only run while device is idle**, and **Require
+4. Configure the compute memory limit and minimum free-RAM reserve, then keep
+   **Enable compute**, **Only run while device is idle**, and **Require
    charging** enabled until the device has been reviewed.
 5. Grant notification permission and press **Start background service**.
-6. Use the persistent notification and status text to confirm connection or
-   diagnose an explicit policy/TLS/enrollment error.
+6. Use **Live service status** and **Work console** to inspect current policy
+   eligibility, incoming/queued/running work, transfer progress, outgoing
+   results, completion/release/failure records, and the last completed task.
 
 The service does not open ports or weaken Android permissions. It uses an
 app-private checkpoint directory and Android Keystore for the Ed25519 private
