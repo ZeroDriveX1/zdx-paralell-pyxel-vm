@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "scope": "local deterministic execution/persistence only; no LLM/provider inference",
+  "runner": {
+    "environment": "GitHub Actions ubuntu-24.04",
+    "python": "3.11.16",
+    "run_id": 37347994293,
+    "artifact_id": 11361651244,
+    "head_sha": "359f749029adde0f69cb1675bc2f9ea56cdbf958",
+    "measured_at": "2026-10-05T17:23:09Z"
+  },
+  "layout": {
+    "width": 64,
+    "height": 32,
+    "execution_rows": 1,
+    "raw_capacity_bytes": 6144,
+    "storage_capacity_bytes": 5952,
+    "regions": [
+      {
+        "name": "memory",
+        "x": 0,
+        "y": 1,
+        "width": 64,
+        "height": 31,
+        "kind": "data",
+        "capacity_bytes": 5952
+      }
+    ]
+  },
+  "benchmarks": [
+    {
+      "name": "resident_spatial_vm",
+      "iterations": 50,
+      "mean_seconds": 0.000027002699999343348,
+      "p50_seconds": 0.000025052999994557013,
+      "p95_seconds": 0.000036104999992403464,
+      "min_seconds": 0.00002462700000194218,
+      "max_seconds": 0.00004538799998954346,
+      "operations_per_second": 37033.333704567245
+    },
+    {
+      "name": "file_decoded_spatial_vm",
+      "iterations": 50,
+      "mean_seconds": 0.00009356694000047128,
+      "p50_seconds": 0.00008765700000168408,
+      "p95_seconds": 0.00012118200000088564,
+      "min_seconds": 0.0000832050000099116,
+      "max_seconds": 0.00013587499999800912,
+      "operations_per_second": 10687.535576080218
+    },
+    {
+      "name": "same_frame_agent_transaction",
+      "iterations": 50,
+      "mean_seconds": 0.001765792859999351,
+      "p50_seconds": 0.001752078499997367,
+      "p95_seconds": 0.001939871999994125,
+      "min_seconds": 0.0016162339999965525,
+      "max_seconds": 0.002076578000000495,
+      "operations_per_second": 566.3178409274842
+    },
+    {
+      "name": "compatibility_agent_memory_update",
+      "iterations": 50,
+      "mean_seconds": 0.012217671659998644,
+      "p50_seconds": 0.009773663999993687,
+      "p95_seconds": 0.02719249300000115,
+      "min_seconds": 0.008537917999987599,
+      "max_seconds": 0.03146707000000504,
+      "operations_per_second": 81.84865560547492
+    },
+    {
+      "name": "canonical_json_roundtrip",
+      "iterations": 500,
+      "mean_seconds": 0.000007957926000216276,
+      "p50_seconds": 0.000007672000002401091,
+      "p95_seconds": 0.00000850300000365678,
+      "min_seconds": 0.000007441999997581661,
+      "max_seconds": 0.00003740700000776087,
+      "operations_per_second": 125660.88199020983
+    }
+  ],
+  "comparisons": {
+    "resident_vs_file_vm_speedup": 3.4650957127526745,
+    "same_frame_vs_compatibility_persistence_speedup": 6.919085435651345,
+    "png_checkpoint_cost_vs_resident_vm": 65.39319623749816
+  }
+}
