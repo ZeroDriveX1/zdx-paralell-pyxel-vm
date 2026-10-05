@@ -57,6 +57,31 @@ class SpatialRegion:
 
 
 @dataclass(frozen=True)
+class DirtyRectangle:
+    """Conservative raster rectangle changed since the last acknowledgement."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+    def union(self, other: "DirtyRectangle") -> "DirtyRectangle":
+        left = min(self.x, other.x)
+        top = min(self.y, other.y)
+        right = max(self.x + self.width, other.x + other.width)
+        bottom = max(self.y + self.height, other.y + other.height)
+        return DirtyRectangle(left, top, right - left, bottom - top)
+
+    def touches(self, other: "DirtyRectangle") -> bool:
+        return not (
+            self.x + self.width < other.x
+            or other.x + other.width < self.x
+            or self.y + self.height < other.y
+            or other.y + other.height < self.y
+        )
+
+
+@dataclass(frozen=True)
 class SpatialLayout:
     """Deterministic geometry contract for a spatial PNG.
 
@@ -275,10 +300,47 @@ class SpatialFrame:
             )
         self.image = image.copy()
         self.layout = layout
+        self._dirty_rectangles: list[DirtyRectangle] = []
 
     def clone(self) -> "SpatialFrame":
         """Return an independent frozen-capable copy of this decoded raster."""
-        return SpatialFrame(self.image.copy(), self.layout)
+        cloned = SpatialFrame(self.image.copy(), self.layout)
+        cloned._dirty_rectangles = list(self._dirty_rectangles)
+        return cloned
+
+    @property
+    def dirty_rectangles(self) -> tuple[DirtyRectangle, ...]:
+        return tuple(self._dirty_rectangles)
+
+    @property
+    def dirty_bounds(self) -> DirtyRectangle | None:
+        if not self._dirty_rectangles:
+            return None
+        merged = self._dirty_rectangles[0]
+        for rectangle in self._dirty_rectangles[1:]:
+            merged = merged.union(rectangle)
+        return merged
+
+    def clear_dirty(self) -> None:
+        self._dirty_rectangles.clear()
+
+    def _mark_dirty(self, rectangle: DirtyRectangle) -> None:
+        if rectangle.width < 1 or rectangle.height < 1:
+            return
+        pending = rectangle
+        kept: list[DirtyRectangle] = []
+        for current in self._dirty_rectangles:
+            if current.touches(pending):
+                pending = current.union(pending)
+            else:
+                kept.append(current)
+        kept.append(pending)
+        if len(kept) > 64:
+            merged = kept[0]
+            for current in kept[1:]:
+                merged = merged.union(current)
+            kept = [merged]
+        self._dirty_rectangles = kept
 
     @classmethod
     def blank(cls, layout: SpatialLayout) -> "SpatialFrame":
@@ -310,7 +372,11 @@ class SpatialFrame:
         self.layout._check_coordinate(x, y)
         if len(rgb) != 3 or any(not 0 <= int(v) <= 255 for v in rgb):
             raise ValueError("RGB cell values must each be in range 0..255")
-        self.image.putpixel((x, y), tuple(int(v) for v in rgb))
+        normalized = tuple(int(v) for v in rgb)
+        if tuple(self.image.getpixel((x, y))) == normalized:
+            return
+        self.image.putpixel((x, y), normalized)
+        self._mark_dirty(DirtyRectangle(x, y, 1, 1))
 
     def read_u24(self, x: int, y: int) -> int:
         r, g, b = self.read_cell(x, y)
@@ -340,6 +406,8 @@ class SpatialFrame:
                 f"payload of {len(raw)} bytes at offset {offset} exceeds "
                 f"region {target.name!r} capacity {target.capacity_bytes}"
             )
+        if not raw:
+            return
         arr = np.array(self.image, dtype=np.uint8)
         block = arr[
             target.y : target.y + target.height,
@@ -347,13 +415,36 @@ class SpatialFrame:
             :,
         ].copy()
         flat = block.reshape(-1)
-        flat[offset : offset + len(raw)] = np.frombuffer(raw, dtype=np.uint8)
+        incoming = np.frombuffer(raw, dtype=np.uint8)
+        if np.array_equal(flat[offset : offset + len(raw)], incoming):
+            return
+        flat[offset : offset + len(raw)] = incoming
         arr[
             target.y : target.y + target.height,
             target.x : target.x + target.width,
             :,
         ] = flat.reshape(target.height, target.width, 3)
         self.image = Image.fromarray(arr, "RGB")
+
+        first_cell = offset // 3
+        last_cell = (offset + len(raw) - 1) // 3
+        first_row, first_col = divmod(first_cell, target.width)
+        last_row, last_col = divmod(last_cell, target.width)
+        if first_row == last_row:
+            rectangle = DirtyRectangle(
+                target.x + first_col,
+                target.y + first_row,
+                last_col - first_col + 1,
+                1,
+            )
+        else:
+            rectangle = DirtyRectangle(
+                target.x,
+                target.y + first_row,
+                target.width,
+                last_row - first_row + 1,
+            )
+        self._mark_dirty(rectangle)
 
     def write_json(self, obj, *, region: Optional[str] = None) -> None:
         payload = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")

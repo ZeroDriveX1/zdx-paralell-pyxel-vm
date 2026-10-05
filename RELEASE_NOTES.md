@@ -1,5 +1,16 @@
 # ZeroDriveX Release Notes
 
+## Pass 20.0 — Namespaced Memory, Provenance, Capabilities, and Dirty Tracking
+
+The Pyxel-native Agent Module now layers strict quota-aware logical memory over its persistent ABI region, with deterministic binary byte accounting, reject/FIFO policies, canonical compaction, and fail-closed persisted-schema validation.
+
+A bounded hash-chained provenance journal can occupy the ABI provenance region and automatically records VM executions and mailbox transfers. The journal is intentionally finite; it is retained-window provenance, not yet a full replay WAL.
+
+The default-deny capability gateway installs an integrity-checked binary grant table, supports exact action grants and approval-required states, and binds permitted action envelopes to canonical arguments plus an exact durable VM checkpoint and PNG artifact identity. It authorizes/prepares actions but does not execute tools. Explicit Axiomatic approval-artifact verification remains the next security integration.
+
+Resident spatial frames now track conservative dirty rectangles and sessions track semantic dirty roles. These are optimization/audit metadata only; current durable PNG checkpoints still perform complete standards-valid encoding.
+
+
 ## Pass 19.0 — Agent ABI v1, SpatialAgentSession, and Native Mailboxes
 
 The Pyxel-native Agent Module now has a versioned same-frame foundation separate from ZDX AgentCore. `SpatialAgentSession` owns resident spatial execution, VM state activation/recovery, ABI metadata, native mailbox access, dirty-state tracking, and checkpoint lifecycle.

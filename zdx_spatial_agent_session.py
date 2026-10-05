@@ -10,8 +10,12 @@ from zdx_agent_abi import (
     ROLE_MAILBOX_IN,
     ROLE_MAILBOX_OUT,
     ROLE_PERSISTENT_MEMORY,
+    ROLE_PROVENANCE,
     SpatialAgentABI,
 )
+from zdx_agent_capabilities import AgentCapabilityGateway
+from zdx_agent_journal import SpatialEventJournal
+from zdx_agent_memory_manager import AgentMemoryManager
 from zdx_checkpoint import SpatialCheckpointManager, checkpoint_hash_from_memory
 from zdx_spatial_mailbox import SpatialMailbox
 
@@ -39,8 +43,14 @@ class SpatialAgentSession:
         self.manager = manager
         self.abi = abi
         self._mailboxes: dict[str, SpatialMailbox] = {}
+        self._journal: SpatialEventJournal | None = None
+        self._memory_manager: AgentMemoryManager | None = None
+        self._capability_gateway: AgentCapabilityGateway | None = None
         self._closed = False
         self._dirty = bool(dirty)
+        self._dirty_roles: set[str] = set()
+        if dirty:
+            self._dirty_roles.add(ROLE_PERSISTENT_MEMORY)
         self._lock = threading.RLock()
 
     @staticmethod
@@ -181,6 +191,78 @@ class SpatialAgentSession:
         self.values["source_frame"] = self.image_path
         return state["vm_checkpoint"]
 
+    def mark_dirty(self, role: str | None = None) -> None:
+        self._dirty = True
+        if role:
+            self._dirty_roles.add(str(role))
+
+    @property
+    def dirty_roles(self) -> tuple[str, ...]:
+        return tuple(sorted(self._dirty_roles))
+
+    def memory_manager(self) -> AgentMemoryManager:
+        with self._lock:
+            self._ensure_open()
+            if self._memory_manager is None:
+                self._memory_manager = AgentMemoryManager(self)
+            return self._memory_manager
+
+    def install_capability_gateway(
+        self, gateway: AgentCapabilityGateway
+    ) -> str | None:
+        with self._lock:
+            self._ensure_open()
+            if not isinstance(gateway, AgentCapabilityGateway):
+                raise TypeError("gateway must be an AgentCapabilityGateway")
+            manifest = gateway.install(self)
+            self._capability_gateway = gateway
+            return manifest
+
+    def decide_action(self, *, capability: str, action: str, arguments: dict):
+        with self._lock:
+            self._ensure_open()
+            if self._capability_gateway is None:
+                raise RuntimeError("no capability gateway is installed")
+            return self._capability_gateway.decide(
+                self,
+                capability=capability,
+                action=action,
+                arguments=arguments,
+            )
+
+    def journal(self, *, slot_size: int = 384) -> SpatialEventJournal:
+        with self._lock:
+            self._ensure_open()
+            region = self.abi.require_region(ROLE_PROVENANCE)
+            if self._journal is None:
+                self._journal = SpatialEventJournal(
+                    self.frame, region, slot_size=slot_size
+                )
+                if self._journal.initialized_new:
+                    self.mark_dirty(ROLE_PROVENANCE)
+            elif self._journal.slot_size != slot_size:
+                raise ValueError("journal already opened with a different slot size")
+            return self._journal
+
+    def record_event(
+        self,
+        event_type: str,
+        payload: bytes = b"",
+        *,
+        generation: int | None = None,
+    ):
+        with self._lock:
+            self._ensure_open()
+            if self.abi.region_for(ROLE_PROVENANCE) is None:
+                return None
+            record = self.journal().append(
+                event_type,
+                payload,
+                generation=self.generation if generation is None else generation,
+            )
+            self.mark_dirty(ROLE_PROVENANCE)
+            return record
+
     @property
     def generation(self) -> int:
         return int(self.values["vm_checkpoint"]["generation"])
@@ -195,7 +277,12 @@ class SpatialAgentSession:
             self._activate_vm()
             self.vm.execute_spatial_frame(self.frame)
             marker = self._capture_state()
-            self._dirty = True
+            self.mark_dirty("vm_state")
+            self.record_event(
+                "vm.execute",
+                marker["checkpoint_hash"].encode("ascii"),
+                generation=marker["generation"],
+            )
             if self.manager.due(marker["generation"]):
                 self.manager.submit(
                     self.frame,
@@ -204,6 +291,8 @@ class SpatialAgentSession:
                     checkpoint_hash=marker["checkpoint_hash"],
                 )
                 self._dirty = False
+                self._dirty_roles.clear()
+                self.frame.clear_dirty()
             return self.vm.registers
 
     def mailbox(self, role: str, *, slot_size: int = 256) -> SpatialMailbox:
@@ -216,7 +305,7 @@ class SpatialAgentSession:
             if cached is None:
                 cached = SpatialMailbox(self.frame, region, slot_size=slot_size)
                 self._mailboxes[role] = cached
-                self._dirty = True
+                self.mark_dirty(role)
             elif cached.slot_size != slot_size:
                 raise ValueError("mailbox already opened with a different slot size")
             return cached
@@ -237,14 +326,22 @@ class SpatialAgentSession:
                 recipient=recipient,
                 topic=topic,
             )
-            self._dirty = True
+            self.mark_dirty(role)
+            self.record_event(
+                "mailbox.send",
+                f"{message.sequence}:{message.sha256}".encode("ascii"),
+            )
             return message
 
     def receive(self, *, role: str = ROLE_MAILBOX_IN):
         with self._lock:
             message = self.mailbox(role).dequeue()
             if message is not None:
-                self._dirty = True
+                self.mark_dirty(role)
+                self.record_event(
+                    "mailbox.receive",
+                    f"{message.sequence}:{message.sha256}".encode("ascii"),
+                )
             return message
 
     def checkpoint(self, *, barrier: bool = True) -> dict:
@@ -252,7 +349,7 @@ class SpatialAgentSession:
             self._ensure_open()
             self._activate_vm()
             marker = self._capture_state()
-            self.manager.submit(
+            request_id = self.manager.submit(
                 self.frame,
                 self.values,
                 generation=marker["generation"],
@@ -260,7 +357,13 @@ class SpatialAgentSession:
                 barrier=barrier,
             )
             self._dirty = False
-            return copy.deepcopy(marker)
+            self._dirty_roles.clear()
+            self.frame.clear_dirty()
+            result = copy.deepcopy(marker)
+            result["checkpoint_request_id"] = request_id
+            if barrier:
+                result["artifact_sha256"] = self.manager.last_committed_artifact_sha256
+            return result
 
     def flush(self, timeout: float | None = None) -> bool:
         with self._lock:
@@ -278,3 +381,6 @@ class SpatialAgentSession:
             self.manager.close(flush=flush, timeout=timeout)
             self._closed = True
             self._mailboxes.clear()
+            self._journal = None
+            self._memory_manager = None
+            self._capability_gateway = None

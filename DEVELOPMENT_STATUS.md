@@ -171,3 +171,32 @@ existing leases. Claims now subtract running-task RAM and thread reservations
 and are capped by registered static/safe worker limits, preventing lease-level
 overcommit.
 
+## Pyxel-native agent services pass 20.0
+
+The Agent ABI/session/mailbox foundation is extended with strict namespaced
+persistent memory, bounded provenance, default-deny capabilities, and dirty
+tracking.
+
+Memory quotas are calculated from the exact deterministic spatial binary codec.
+Persisted namespace schemas fail closed when order/key/quota invariants are
+invalid. Provenance is a finite hash-chained ring in the PNG ABI region and
+records resident execution/mailbox activity. It is not yet a full external
+event log or crash-replay WAL.
+
+The capability gateway writes/verifies a deterministic binary grant table,
+forces an exact barrier before permitted consequential actions, and binds the
+action hash to arguments, VM generation/checkpoint hash, and exact committed
+PNG SHA-256. It does not execute tools. Approval-required grants remain blocked
+until a future explicit approval-artifact verifier (intended Axiomatic Runtime
+bridge) is implemented.
+
+SpatialFrame now tracks conservative dirty rectangles and sessions track dirty
+semantic roles. Current durable checkpoints still perform complete PNG
+encoding; dirty metadata is groundwork for future COW/tiled snapshot work.
+
+The capability boundary was further hardened so a gateway cannot authorize on a
+frame lacking provenance. The retained provenance chain is verified before
+authorization, and state-bound action envelopes include the exact capability
+manifest SHA-256 in addition to arguments, VM checkpoint identity, and committed
+PNG identity.
+

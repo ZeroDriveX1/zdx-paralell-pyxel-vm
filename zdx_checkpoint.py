@@ -102,6 +102,10 @@ class SpatialCheckpointManager:
     def last_committed_hash(self) -> str:
         return self._last_committed_hash
 
+    @property
+    def last_committed_artifact_sha256(self) -> str | None:
+        return self._current_artifact_sha256
+
     def submit(self, frame, values: dict, *, generation: int, checkpoint_hash: str, barrier: bool = False):
         actual = checkpoint_hash_from_memory(values)
         if actual != checkpoint_hash:

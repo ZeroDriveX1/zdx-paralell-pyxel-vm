@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   python-full:
     name: full-python-${{ matrix.python }}
@@ -59,6 +63,26 @@ jobs:
           for pass in 1 2 3; do
             echo "compute/resource pass $pass"
             pytest -q               test_compute_resources.py               test_compute_leases.py               test_distributed_deployment.py               test_spatial_compute.py               tests/test_release_validation.py
+          done
+
+  agent-core-stress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -r requirements-security.txt
+      - name: Repeat Pyxel-native agent ABI/session/memory/security validation
+        run: |
+          for pass in 1 2 3; do
+            echo "agent-core pass $pass"
+            pytest -q \
+              test_spatial_architecture.py \
+              tests/test_agent_session_abi.py \
+              tests/test_agent_memory_journal_capabilities.py
           done
 
   persistence-recovery:

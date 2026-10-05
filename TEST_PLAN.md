@@ -84,3 +84,18 @@ The gate intentionally does not substitute for physical Android-device testing, 
 - Verify mailbox and VM state survive a barrier checkpoint and restart in the same spatial PNG.
 - Verify clean session close persists dirty generations before the normal checkpoint interval.
 - Verify an exact barrier at the same VM generation waits for the newer mailbox/frame snapshot rather than returning on an older generation-only checkpoint.
+
+
+## Agent memory/provenance/capability gate
+
+- Reject malformed persisted namespace schemas, invalid keys/order lists, duplicate order entries, over-quota persisted namespaces, and document overflow.
+- Verify exact binary quota accounting, reject-policy behavior, FIFO eviction, compaction, checkpoint persistence, and restart recovery.
+- Verify provenance journal sequence order, bounded rollover, hash linkage, chain head, and payload tamper detection.
+- Verify sessions automatically journal VM execution and mailbox activity when a provenance ABI region exists.
+- Verify capability tables are deterministic and integrity checked; table corruption must fail closed.
+- Verify unknown capabilities/actions deny by default.
+- Verify allowed actions are bound to an exact barrier checkpoint, VM state hash, committed PNG hash, and canonical arguments.
+- Verify `approval_required` cannot be downgraded by a generic evaluator.
+- Verify dirty rectangles/roles accumulate conservatively and are acknowledged at checkpoint boundaries.
+
+These tests do not claim full historical replay or incremental PNG writes; those remain separate future gates.

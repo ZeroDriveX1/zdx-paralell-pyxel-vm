@@ -343,3 +343,20 @@ All code follows these standards:
 - Added dirty-session tracking so clean flush/close persists state even before the normal 10-execution checkpoint interval.
 - Added checkpoint request tickets so exact barriers wait for the requested frozen snapshot even when multiple states share one VM generation.
 - Added tests for ABI rebinding rejection, mailbox FIFO/full/wrap/tamper behavior, restart persistence, clean-close durability, and same-generation exact barriers.
+
+
+## [Unreleased] - Agent Memory, Provenance, Capabilities, and Dirty Tracking
+
+- Added strict logical agent-memory namespaces with exact typed-binary byte accounting.
+- Added per-namespace quotas, reject/FIFO policies, canonical compaction, and malformed persisted-state rejection.
+- Added bounded hash-chained spatial provenance journal with retained-window integrity validation.
+- Automatically journaled VM execution and mailbox send/receive events when a provenance ABI region is present.
+- Added deterministic binary capability tables in Agent ABI capability regions.
+- Added default-deny exact capability/action authorization with optional fail-closed evaluator.
+- Bound permitted action hashes to canonical arguments, VM generation/checkpoint hash, and exact durable PNG artifact SHA-256.
+- Prevented generic evaluators from bypassing `approval_required` grants.
+- Added conservative raster dirty-rectangle tracking and semantic dirty-role tracking.
+- Kept full PNG encoding as the durability mechanism; dirty tracking does not claim incremental PNG persistence.
+- Added regression coverage for quotas/eviction, malformed namespaces, journal rollover/tamper, capability-table tamper, state-bound action hashes, approval enforcement, and dirty acknowledgement.
+- Required verified provenance for capability authorization and bound action envelopes to the exact installed capability-manifest SHA-256.
+
