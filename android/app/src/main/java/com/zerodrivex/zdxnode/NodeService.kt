@@ -111,13 +111,20 @@ class NodeService : Service() {
         transport = nodeTransport
         try {
             val policy = policyStore.load()
-            if (!admission.canRun(policy)) return
+            val initialBlock = admission.blockReason(policy)
+            if (initialBlock != null) {
+                updateStatus(false, "policy paused: $initialBlock", workState = "POLICY_BLOCKED")
+                return
+            }
+            recordWork("CONNECTING", "registering node and capabilities", direction = "outgoing")
             val capability = ZdxProtocol(this).capabilityReportJson()
                 .put("android_vm_adapter_protocol", ANDROID_VM_ADAPTER_PROTOCOL)
                 .put("android_vm_adapters", taskExecutor.advertisedAdapters())
             nodeTransport.register(capability)
             retryDelayMs = BASE_RETRY_MS
+            recordWork("CONNECTED", "node registered; polling for work", direction = "outgoing")
             val snapshot = admission.snapshot()
+            recordWork("POLL", "requesting available work", direction = "outgoing")
             val poll = nodeTransport.poll(
                 (snapshot.availableMemoryMb - policy.minFreeMemoryMb).coerceAtLeast(0),
                 Runtime.getRuntime().availableProcessors(), 0.0
@@ -126,25 +133,50 @@ class NodeService : Service() {
             val payload = poll.optJSONObject("payload") ?: throw IOException("poll response has no payload")
             val rawTask = payload.opt("task")
             if (rawTask == null || rawTask == JSONObject.NULL) {
-                updateStatus(true, "connected; no task available")
+                updateStatus(true, "connected; no task available", workState = "IDLE")
                 return
             }
             val task = rawTask as? JSONObject ?: throw IOException("poll task is malformed")
             taskId = task.optString("task_id")
+            recordWork("INCOMING", "task received from coordinator", taskId, "incoming")
             leaseId = task.optJSONObject("metadata")?.optString("lease_id")?.takeIf { it.isNotBlank() }
             val digest = task.optString("artifact_digest")
             val memoryMb = task.optInt("memory_mb", Int.MAX_VALUE)
             if (taskId.isBlank() || digest.isBlank()) throw IOException("Android requires an artifact-backed task")
-            if (!admission.canRun(policy) || memoryMb > policy.memoryLimitMb) {
-                nodeTransport.release(taskId, "Android resource policy rejected task", leaseId)
-                updateStatus(true, "task released by resource policy")
+            val taskPolicyBlock = admission.blockReason(policy)
+            if (taskPolicyBlock != null || memoryMb > policy.memoryLimitMb) {
+                val reason = taskPolicyBlock ?: "task requests $memoryMb MB above configured ${policy.memoryLimitMb} MB limit"
+                nodeTransport.release(taskId, "Android resource policy rejected task: $reason", leaseId)
+                recordWork("RELEASED", reason, taskId, "outgoing")
+                updateStatus(true, "task released: $reason", workState = "RELEASED", taskId = taskId, terminal = true)
                 return
             }
-            updateStatus(true, "receiving $taskId")
-            val artifact = nodeTransport.receiveArtifact(taskId, digest) { admission.canRun(policyStore.load()) }
+            updateStatus(true, "queued $taskId", workState = "QUEUED", taskId = taskId)
+            recordWork("QUEUED", "task admitted by local resource policy", taskId, "incoming")
+            var lastPercent = -1
+            updateStatus(true, "receiving $taskId", workState = "RECEIVING", taskId = taskId)
+            val artifact = nodeTransport.receiveArtifact(
+                taskId,
+                digest,
+                shouldContinue = { admission.canRun(policyStore.load()) },
+                onProgress = { received, total ->
+                    val percent = if (total > 0) ((received * 100L) / total).toInt() else 0
+                    if (percent != lastPercent) {
+                        lastPercent = percent
+                        updateStatus(true, "receiving $taskId · $percent%", workState = "RECEIVING", taskId = taskId, progress = percent)
+                        workEvents.append("DOWNLOAD", "$received/$total bytes ($percent%)", taskId, "incoming")
+                    }
+                }
+            )
+            updateStatus(true, "running $taskId", workState = "RUNNING", taskId = taskId, progress = 100)
+            recordWork("RUNNING", "artifact verified; adapter execution started", taskId)
+            val startedAt = System.currentTimeMillis()
             val result = taskExecutor.execute(task, artifact, policyStore.load())
+            val elapsed = System.currentTimeMillis() - startedAt
+            recordWork("OUTGOING", "sending result after ${elapsed}ms compute", taskId, "outgoing")
             nodeTransport.complete(taskId, AndroidResultAttestor(this).attest(result), leaseId)
-            updateStatus(true, "completed $taskId")
+            recordWork("COMPLETED", "result acknowledged by coordinator · ${elapsed}ms", taskId, "outgoing")
+            updateStatus(true, "completed $taskId · ${elapsed}ms", workState = "COMPLETED", taskId = taskId, terminal = true)
             artifact.delete()
         } catch (_: ZdxMeshPreemptedException) {
             if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, "Android became busy or stopped charging", leaseId)
