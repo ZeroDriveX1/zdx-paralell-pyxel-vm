@@ -15,7 +15,7 @@ class ZDXState:
         return datetime.now(timezone.utc).isoformat()
 
     def _default(self):
-        return {"created": self.now(), "peers": {}, "heartbeats": 0}
+        return {"created": self.now(), "peers": {}, "auth_peers": {}, "heartbeats": 0}
 
     def save(self):
         self.store.save(self.data)
@@ -28,6 +28,29 @@ class ZDXState:
             data["peers"] = peers
             return data
         self.data = self.store.update(update, self._default())
+
+    def record_authenticated_peer(self, peer_id, timestamp):
+        def update(data):
+            data = dict(data or self._default())
+            peers = dict(data.get("auth_peers", {}))
+            record = dict(peers.get(str(peer_id), {}))
+            record.setdefault("first_authenticated_at", float(timestamp))
+            record["last_authenticated_at"] = float(timestamp)
+            peers[str(peer_id)] = record
+            data["auth_peers"] = peers
+            return data
+        self.data = self.store.update(update, self._default())
+
+    def long_authenticated_peers(self, max_age_seconds, active_within_seconds=300.0, now=None):
+        current = __import__("time").time() if now is None else float(now)
+        result = []
+        for peer_id, record in self.data.get("auth_peers", {}).items():
+            first = float(record.get("first_authenticated_at", current))
+            last = float(record.get("last_authenticated_at", 0.0))
+            age = max(0.0, current - first)
+            if age >= float(max_age_seconds) and current - last <= float(active_within_seconds):
+                result.append({"node_id": peer_id, "auth_age_seconds": age, "last_authenticated_at": last})
+        return sorted(result, key=lambda item: item["auth_age_seconds"], reverse=True)
 
     def record_heartbeat(self):
         def update(data):
