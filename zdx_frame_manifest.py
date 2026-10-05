@@ -27,7 +27,11 @@ class ZDXFrameManifest:
         self.created = time.time()
         self.frame_format = frame_format
         self.spatial_layout = self._normalize_layout(spatial_layout)
-        if self.spatial_layout is not None and spatial_version != SPATIAL_FRAME_VERSION:
+        if self.spatial_layout is not None and (
+            isinstance(spatial_version, bool)
+            or not isinstance(spatial_version, int)
+            or spatial_version != SPATIAL_FRAME_VERSION
+        ):
             raise ValueError(
                 f"unsupported spatial_version {spatial_version!r}; "
                 f"expected {SPATIAL_FRAME_VERSION}"
