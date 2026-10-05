@@ -1,125 +1,101 @@
+"""Registry-driven ZDX agent module for standard and spatial Pyxel execution.
+
+The agent module remains separate from ZDX AgentCore. It coordinates registered
+VM, memory, scheduler, and inference-facing components without coupling the VM
+to a specific agent implementation.
+
+For spatial execution, the PNG raster remains the executable/state container.
+Agent memory may live in a separate spatial PNG or in a named non-executable
+region of the same executable frame.
 """
-zdx_agent_runtime.py — Reference consumer showing how PyxelRegistry coordinates
-the Parallel Pyxel VM and agent memory without coupling them.
 
-ZDXAgentRuntime never imports ParallelPyxelVM or ZDXAgentMemory directly.
-It retrieves them from the registry by name and calls their interfaces.
-This means any object with a compatible interface can be swapped in —
-a mock vm, an alternate memory backend, a logging proxy, etc.
+from __future__ import annotations
 
-Expected registry keys
-----------------------
-    "vm"      (required) — any object with:
-                  execute_texture(image_path: str) -> dict
-                  .shared     : dict
-                  .registers  : dict
-
-    "memory"        (optional) — any object with:
-                        remember(key: str, value: any) -> any
-    "scheduler"     (mission)  — any object with:
-                        execute_mission(agent, mission) -> MissionResult
-    "mission_agent" (mission)  — agent accepted by the scheduler
-"""
+import os
 
 from pyxel_registry import PyxelRegistry
 
 
 class ZDXAgentRuntime:
-    """
-    Thin coordination layer that runs a VM program and optionally persists
-    execution state to an agent memory backend.
-
-    Both the VM and the memory backend are resolved from the registry at
-    call time, so they can be swapped without touching this class.
-
-    Parameters
-    ----------
-    registry : PyxelRegistry
-        A populated registry containing at least a "vm" entry.
-    """
-
     def __init__(self, registry: PyxelRegistry):
         self.registry = registry
 
+    def _memory(self):
+        try:
+            return self.registry.get("memory")
+        except KeyError:
+            return None
+
+    @staticmethod
+    def _layout_payload(layout):
+        if layout is None:
+            return None
+        return layout.to_dict() if hasattr(layout, "to_dict") else dict(layout)
+
+    def _persist_state(self, vm, mem, *, spatial_layout=None, source_frame=None):
+        if mem is None:
+            return
+        payload = {
+            "shared_state": dict(vm.shared),
+            "register_state": {name: dict(values) for name, values in vm.registers.items()},
+        }
+        layout_payload = self._layout_payload(spatial_layout)
+        if layout_payload is not None:
+            payload["spatial_layout"] = layout_payload
+        if source_frame is not None:
+            payload["source_frame"] = os.path.abspath(source_frame)
+        update = getattr(mem, "update", None)
+        if callable(update):
+            update(payload)
+        else:
+            for key, value in payload.items():
+                mem.remember(key, value)
+
     def run_mission(self, mission: str):
-        """Execute a mission through registered scheduler and agent components."""
+        """Execute a mission through registered scheduler/mission-agent components."""
         scheduler = self.registry.get("scheduler")
         agent = self.registry.get("mission_agent")
         return scheduler.execute_mission(agent, mission)
 
     def run(self, image_path: str) -> dict:
-        """
-        Execute *image_path* on the registered VM and optionally persist state.
-
-        Steps
-        -----
-        1. Retrieve vm from registry.get("vm").
-        2. Retrieve mem from registry.get("memory") if registered (optional).
-        3. Call vm.execute_texture(image_path).
-        4. If mem is registered, persist vm.shared under "shared_state" and
-           vm.registers under "register_state".
-        5. Return vm.registers.
-
-        Parameters
-        ----------
-        image_path : str
-            Path to the program PNG to execute.
-
-        Returns
-        -------
-        dict
-            The VM's register state after execution.
-        """
+        """Execute a legacy/linear PNG program and persist resulting VM state."""
         vm = self.registry.get("vm")
-
-        mem = None
-        try:
-            mem = self.registry.get("memory")
-        except KeyError:
-            pass
-
+        mem = self._memory()
         vm.execute_texture(image_path)
-
-        if mem is not None:
-            mem.remember("shared_state", dict(vm.shared))
-            mem.remember("register_state", {k: dict(v) for k, v in vm.registers.items()})
-
+        self._persist_state(vm, mem, source_frame=image_path)
         return vm.registers
 
+    def run_spatial(self, image_path: str) -> dict:
+        """Execute a spatial PNG and persist state through the spatial contract.
 
-if __name__ == "__main__":
-    # Usage example — imports are local to __main__ so the module itself
-    # stays decoupled from any specific VM or memory implementation.
-    from zdx_parallel_vm import ParallelPyxelVM, SimpleCompiler
-    from zdx_pixel_memory import ZDXAgentMemory
-    import tempfile, os
+        The registered VM must expose execute_spatial() and layout. When the
+        registered memory backend is bound to the same PNG, its named region
+        must be outside the executable rows; SpatialLayout validation enforces
+        that boundary.
+        """
+        vm = self.registry.get("vm")
+        execute = getattr(vm, "execute_spatial", None)
+        if not callable(execute):
+            raise TypeError("registered VM does not support spatial PNG execution")
+        layout = getattr(vm, "layout", None)
+        if layout is None:
+            raise TypeError("spatial VM must expose a layout")
 
-    # Build a tiny program so the example is self-contained
-    compiler = SimpleCompiler()
-    prog = [["SET_A 10", "SET_B 5", "ADD", "COPY_OUT", "STORE_MEM 0", "HALT"]]
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    tmp.close()
-    compiler.compile(prog, tmp.name)
+        mem = self._memory()
+        if mem is not None and getattr(mem, "is_spatial", False):
+            memory_layout = getattr(mem, "layout", None)
+            if memory_layout is not None:
+                left = self._layout_payload(layout)
+                right = self._layout_payload(memory_layout)
+                if os.path.abspath(getattr(mem, "frame_path", "") or "") == os.path.abspath(image_path):
+                    if left != right:
+                        raise ValueError("same-frame spatial memory must use the VM's exact layout")
 
-    # --- Example 1: vm + memory backend ---
-    registry = PyxelRegistry()
-    registry.register("vm", ParallelPyxelVM(threads=1))
-    registry.register("memory", ZDXAgentMemory(agent_id="example_agent"))
-
-    runtime = ZDXAgentRuntime(registry)
-    result = runtime.run(tmp.name)
-
-    print("registers:", result)
-    mem = registry.get("memory")
-    print("persisted shared_state:", mem.recall("shared_state"))
-    print("persisted register_state:", mem.recall("register_state"))
-
-    # --- Example 2: vm only — no memory backend ---
-    registry2 = PyxelRegistry()
-    registry2.register("vm", ParallelPyxelVM(threads=1))
-
-    runtime2 = ZDXAgentRuntime(registry2)
-    result2 = runtime2.run(tmp.name)
-    print("vm-only result:", result2)
-
-    os.unlink(tmp.name)
+        execute(image_path)
+        self._persist_state(
+            vm,
+            mem,
+            spatial_layout=layout,
+            source_frame=image_path,
+        )
+        return vm.registers
