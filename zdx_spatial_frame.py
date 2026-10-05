@@ -487,6 +487,7 @@ class SpatialPyxelVM(ParallelPyxelVM):
                 self.max_chain = original_max_chain
         if self.persist_shared:
             self._save_shared()
+        self._record_execution_generation()
         return self.registers
 
     def execute_spatial(self, image_path: str) -> dict:
