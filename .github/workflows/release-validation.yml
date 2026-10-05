@@ -1,0 +1,97 @@
+name: release-validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  python-full:
+    name: full-python-${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -r requirements-security.txt
+      - name: Compile all Python modules
+        run: python -m compileall -q .
+      - name: Run complete test suite
+        run: pytest -q
+
+  auth-network-stress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -r requirements-security.txt
+      - name: Repeat auth, re-auth, TLS and network-fault validation
+        run: |
+          for pass in 1 2 3; do
+            echo "security/network pass $pass"
+            pytest -q               test_auth_pipeline.py               test_network_auth.py               test_network_faults.py               test_tls.py               tests/test_zdx_rectification.py               tests/test_release_validation.py
+          done
+
+  distributed-resource-stress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -r requirements-security.txt
+      - name: Repeat distributed compute, lease, RAM and spatial admission
+        run: |
+          for pass in 1 2 3; do
+            echo "compute/resource pass $pass"
+            pytest -q               test_compute_resources.py               test_compute_leases.py               test_distributed_deployment.py               test_spatial_compute.py               tests/test_release_validation.py
+          done
+
+  persistence-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -r requirements-security.txt
+      - name: Validate persistence, corruption recovery and hard-kill behavior
+        run: |
+          pytest -q             test_persistence_integration.py             test_power_loss.py             test_storage.py             test_operational_validation.py
+
+  android-release-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Compile and lint Android node
+        run: gradle -p android :app:assembleDebug :app:lintDebug --stacktrace
+      - name: Upload debug APK and lint report
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation-android
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/reports/lint-results-debug.html
