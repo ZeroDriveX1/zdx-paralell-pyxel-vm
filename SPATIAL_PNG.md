@@ -59,9 +59,9 @@ The compiler writes the same RGB opcode cells used by `SimpleCompiler`; it does 
 
 ## Spatial memory
 
-`SpatialPixelStore` packs an agent key/value dictionary into one PNG storage plane instead of creating one PNG per key. It implements the same high-level read/write/delete/keys/all interface as `PixelStore`.
+`SpatialPixelStore` packs an agent key/value map into one PNG storage plane instead of creating one PNG per key. Values use a deterministic typed binary encoding with an in-raster header, generation counter, SHA-256 payload checksum, and canonical key ordering; JSON text is not the active spatial-memory representation. Writes are process-locked, atomically committed, and recoverable from the previous valid PNG generation.
 
-`ZDXAgentMemory(..., spatial=True)` enables the backend while preserving the normal agent-memory API.
+`ZDXAgentMemory(..., spatial=True)` enables the backend while preserving the normal agent-memory API. `spatial_path`, `spatial_layout`, and `spatial_region` can bind agent memory to a named non-executable region of the same PNG that carries the program.
 
 ## Combined execution + storage
 
@@ -70,3 +70,8 @@ A single frame can carry executable rows and persistent data rows simultaneously
 This preserves the defining PyxelVM invariant:
 
 **PNG is the executable container. Raster is machine code/state. Pixels are cells. Coordinates are structure.**
+
+
+## Operational boundary
+
+Spatial mode removes per-key PNG files, JSON serialization in the active memory format, and repeated state-file commits for batch runtime updates. The current persistent backend still decodes and re-encodes the PNG at commit boundaries. Hot-loop agent IPC should therefore operate on a resident decoded raster and checkpoint to PNG transactionally; persistent PNG compression is not itself treated as the acceleration mechanism.
