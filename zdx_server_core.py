@@ -16,11 +16,12 @@ from zdx_compute import ComputeCoordinator, ComputeTask
 from zdx_ed25519_signer import verify_ed25519_signature
 from zdx_network import recv_message, send_message, ZDXMessage, heartbeat
 from zdx_rectification import RectificationQueue
+from zdx_reattest import ReattestationChallengeStore
 from zdx_state import ZDXState
 
 
 class ZDXServer:
-    _TRUST_KINDS = {"rectification_request"}
+    _TRUST_KINDS = {"rectification_request", "reattest_response"}
 
     _COMPUTE_KINDS = {
         "compute_register", "compute_submit", "compute_poll", "compute_result",
@@ -36,6 +37,7 @@ class ZDXServer:
         tls_context: Optional[ssl.SSLContext] = None,
         allow_shared_paths: bool = False,
         rectification_path: str | None = None,
+        reattest_path: str | None = None,
         reattest_after_seconds: float | None = None,
     ):
         self.host = host
@@ -46,6 +48,8 @@ class ZDXServer:
         self.state = ZDXState(state_path)
         default_rectification_path = str(Path(state_path).with_name("rectification_queue.json"))
         self.rectification = RectificationQueue(rectification_path or default_rectification_path)
+        default_reattest_path = str(Path(state_path).with_name("reattest_challenges.json"))
+        self.reattest = ReattestationChallengeStore(reattest_path or default_reattest_path)
         configured_reauth = os.environ.get("ZDX_REATTEST_AFTER_SECONDS", "")
         self.reattest_after_seconds = float(
             reattest_after_seconds if reattest_after_seconds is not None
@@ -158,7 +162,59 @@ class ZDXServer:
             detail=error.reason,
         )
 
+    def _reattest_challenge_for_peer(self, peer_id: str) -> dict | None:
+        pending = self.rectification.pending_for_target(peer_id, "authentication_age")
+        if not pending:
+            return None
+        request = pending[0]
+        challenge = self.reattest.issue(
+            request_id=request["request_id"],
+            node_id=peer_id,
+        )
+        return self.reattest.signed_payload(challenge) | {
+            "challenge_id": challenge["challenge_id"],
+        }
+
+    def _handle_reattest_response(self, conn, message: ZDXMessage) -> None:
+        payload = message.payload
+        challenge_id = str(payload.get("challenge_id", "")).strip()
+        signature = str(payload.get("challenge_signature", "")).strip()
+        if not challenge_id or not signature:
+            raise ValueError("reattest_response requires challenge_id and challenge_signature")
+        public_key = self._peer_public_keys.get(message.peer_id)
+        if not public_key:
+            raise PermissionError("re-attestation requires an enrolled key")
+        verified = self.reattest.verify(
+            challenge_id=challenge_id,
+            node_id=message.peer_id,
+            signature=signature,
+            public_key_pem=public_key,
+        )
+        request_id = str(verified["request_id"])
+        request = next(
+            (item for item in self.rectification.pending_for_target(message.peer_id, "authentication_age")
+             if item.get("request_id") == request_id),
+            None,
+        )
+        if request is None:
+            raise ValueError("re-attestation challenge has no pending authentication-age review")
+        self.rectification.resolve(
+            request_id,
+            "current possession of enrolled Ed25519 private key verified",
+            actor_node_id=message.peer_id,
+        )
+        self.state.record_reattested_peer(message.peer_id)
+        self._send(conn, ZDXMessage(kind="reattest_ack", payload={
+            "accepted": True,
+            "request_id": request_id,
+            "node_id": message.peer_id,
+            "status": "verified",
+        }))
+
     def _handle_trust(self, conn, message: ZDXMessage) -> None:
+        if message.kind == "reattest_response":
+            self._handle_reattest_response(conn, message)
+            return
         payload = message.payload
         target = str(payload.get("target_node_id", "")).strip()
         if not target or target not in self._enrolled_peers or target in self._revoked_peers:
@@ -276,6 +332,7 @@ class ZDXServer:
                             "pending": self.rectification.pending_count(),
                             "reattest_after_seconds": self.reattest_after_seconds,
                         },
+                        "reattest_challenge": self._reattest_challenge_for_peer(message.peer_id),
                     }))
                 else:
                     self._send(conn, ZDXMessage(kind="ack", payload={"received": message.kind}))
