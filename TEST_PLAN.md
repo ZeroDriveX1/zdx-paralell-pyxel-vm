@@ -59,3 +59,18 @@ environment: `./.venv-release/bin/python -m pytest -q` → **120 passed, 0 faile
 The remaining Android/device and clean-host gates require external dependencies,
 hardware, or machines; unavailable tooling is reported as “not testable in this
 workspace,” not as a passed or failed product test.
+
+
+## Comprehensive release-validation gate
+
+The repository now includes `.github/workflows/release-validation.yml`. The gate runs:
+
+- the complete Python suite on Python 3.11 and 3.12;
+- repeated auth, re-auth, TLS, replay and network-fault tests;
+- repeated distributed compute, lease, RAM/thread and spatial-admission tests;
+- persistence, corruption recovery and hard-kill/power-loss tests;
+- Android debug assembly plus lint.
+
+Integrated release tests also exercise a real authenticated socket flow from stale-auth review through heartbeat challenge, signed Ed25519 re-attestation, and scoped review resolution.
+
+The gate intentionally does not substitute for physical Android-device testing, multi-host long-duration concurrency, or fleet-scale capacity testing.
