@@ -18,13 +18,36 @@ class ZdxProtocol(private val context: Context) {
     fun identity(): JSONObject = JSONObject()
         .put("kind", "identity").put("node_id", nodeId).put("platform", "android").put("protocol", 1)
 
+    fun participationMode(): NodeMode {
+        val policy = ResourcePolicyStore(context).load()
+        val block = AndroidResourceAdmission(context).blockReason(policy)
+        return when {
+            !policy.enabled -> NodeMode.SYNC
+            block != null -> NodeMode.LIGHT
+            policy.idleOnly -> NodeMode.COMPUTE_IDLE_ONLY
+            else -> NodeMode.COMPUTE
+        }
+    }
+
     fun capabilityReportJson(): JSONObject {
         val capability = collector.collect()
         val policy = ResourcePolicyStore(context).load()
+        val admission = AndroidResourceAdmission(context)
+        val snapshot = admission.snapshot()
+        val policyBlock = admission.blockReason(policy, snapshot)
         val cpuCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
         val safeConcurrency = (cpuCount / 2).coerceIn(1, 4)
         return JSONObject()
             .put("node_id", nodeId).put("platform", "android").put("protocol", 1)
+            .put("node_mode", participationMode().name.lowercase())
+            .put("compute_eligible", policyBlock == null)
+            .put("policy_block_reason", policyBlock ?: "")
+            .put("support_features", JSONArray()
+                .put("authenticated-heartbeat")
+                .put("capability-refresh")
+                .put("queue-observer")
+                .put("routing-status")
+                .put("artifact-sha256"))
             .put("cpu_count", cpuCount).put("hardware", capability.cpu)
             .put("memory_mb", capability.memoryMb).put("available_memory_mb", capability.availableMemoryMb)
             .put("charging", capability.charging).put("battery_percent", capability.batteryPercent)
