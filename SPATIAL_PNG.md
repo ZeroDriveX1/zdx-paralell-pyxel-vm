@@ -72,6 +72,37 @@ This preserves the defining PyxelVM invariant:
 **PNG is the executable container. Raster is machine code/state. Pixels are cells. Coordinates are structure.**
 
 
+## Resident agent transaction path
+
+When ZDX Agent Memory is bound to a named storage region in the same executable frame, the runtime uses one resident transaction:
+
+    lock frame
+      -> decode PNG once
+      -> validate RGB and geometry
+      -> execute resident raster
+      -> update non-executable memory region
+      -> encode/checkpoint PNG once
+    unlock
+
+If execution or memory update raises, no checkpoint is committed. The previous PNG generation remains authoritative.
+
+Automatic backup recovery is constrained for executable spatial frames: a backup may replace a corrupt primary only when its executable plane is byte-equivalent to the current frame. Memory recovery is never allowed to roll program rows back to older code.
+
+Because frame identity is SHA-256 over the exact PNG bytes, every intentional same-frame state checkpoint produces a new frame hash.
+
+## Canonical spatial v1 validation
+
+Spatial v1 rejects implicit image conversion and ambiguous geometry:
+
+- input container must be PNG;
+- image mode must be RGB;
+- width, height, execution rows, coordinates, and region dimensions must be actual integers, not booleans;
+- derived raw/storage/region capacities must match declared geometry when present;
+- named regions are data regions only; the execution plane is implicit;
+- total raster size is bounded before execution;
+- distributed tasks must declare threads equal to execution_rows;
+- spatial compute admission includes a conservative decoded-raster working-set check.
+
 ## Operational boundary
 
 Spatial mode removes per-key PNG files, JSON serialization in the active memory format, and repeated state-file commits for batch runtime updates. The current persistent backend still decodes and re-encodes the PNG at commit boundaries. Hot-loop agent IPC should therefore operate on a resident decoded raster and checkpoint to PNG transactionally; persistent PNG compression is not itself treated as the acceleration mechanism.
