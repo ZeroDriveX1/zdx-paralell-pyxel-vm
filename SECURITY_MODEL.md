@@ -93,7 +93,7 @@ tool gateway requires all of the following before a handler can run:
 - optional externally bound authorization;
 - durable pre-action intent for barrier-required capabilities.
 
-Tool results and intent records use non-evicting memory namespaces. The gateway
+Tool result records and ambiguous/pending intent records use non-evicting memory namespaces. The gateway
 refuses FIFO/evicting policy for those safety records because silently dropping
 old idempotency state could allow a repeated external side effect.
 
@@ -110,3 +110,10 @@ This gateway does not claim full resident-spatial-state binding yet. Its action
 identity includes the VM generation/checkpoint hash; the planned provenance
 journal will bind broader resident state and event lineage.
 
+
+
+Tool capability policy objects use immutable tuple collections, and public
+proposal authorization recomputes the canonical action hash while also checking
+the active VM generation, VM checkpoint hash, and active policy hash. This
+prevents a forged or stale `AgentActionProposal` from obtaining an allow
+decision through the public authorization surface.
