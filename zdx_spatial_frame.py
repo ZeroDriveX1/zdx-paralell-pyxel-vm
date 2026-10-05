@@ -275,10 +275,42 @@ class SpatialFrame:
             )
         self.image = image.copy()
         self.layout = layout
+        self._dirty_rectangles: list[tuple[int, int, int, int]] = []
+
+    @property
+    def dirty_rectangles(self) -> tuple[tuple[int, int, int, int], ...]:
+        """Return dirty regions as half-open (x0, y0, x1, y1) rectangles."""
+        return tuple(self._dirty_rectangles)
+
+    def clear_dirty_rectangles(self) -> None:
+        self._dirty_rectangles.clear()
+
+    def _mark_dirty_rectangle(self, x0: int, y0: int, x1: int, y1: int) -> None:
+        if not (0 <= x0 < x1 <= self.layout.width and 0 <= y0 < y1 <= self.layout.height):
+            raise ValueError("dirty rectangle is outside spatial frame bounds")
+        pending = (x0, y0, x1, y1)
+        merged: list[tuple[int, int, int, int]] = []
+        for current in self._dirty_rectangles:
+            cx0, cy0, cx1, cy1 = current
+            px0, py0, px1, py1 = pending
+            separated = px1 < cx0 or cx1 < px0 or py1 < cy0 or cy1 < py0
+            if separated:
+                merged.append(current)
+                continue
+            pending = (
+                min(px0, cx0),
+                min(py0, cy0),
+                max(px1, cx1),
+                max(py1, cy1),
+            )
+        merged.append(pending)
+        self._dirty_rectangles = merged
 
     def clone(self) -> "SpatialFrame":
         """Return an independent frozen-capable copy of this decoded raster."""
-        return SpatialFrame(self.image.copy(), self.layout)
+        cloned = SpatialFrame(self.image.copy(), self.layout)
+        cloned._dirty_rectangles = list(self._dirty_rectangles)
+        return cloned
 
     @classmethod
     def blank(cls, layout: SpatialLayout) -> "SpatialFrame":
@@ -311,6 +343,7 @@ class SpatialFrame:
         if len(rgb) != 3 or any(not 0 <= int(v) <= 255 for v in rgb):
             raise ValueError("RGB cell values must each be in range 0..255")
         self.image.putpixel((x, y), tuple(int(v) for v in rgb))
+        self._mark_dirty_rectangle(x, y, x + 1, y + 1)
 
     def read_u24(self, x: int, y: int) -> int:
         r, g, b = self.read_cell(x, y)
@@ -354,6 +387,27 @@ class SpatialFrame:
             :,
         ] = flat.reshape(target.height, target.width, 3)
         self.image = Image.fromarray(arr, "RGB")
+        if raw:
+            first_pixel = offset // 3
+            last_pixel = (offset + len(raw) - 1) // 3
+            first_y, first_x = divmod(first_pixel, target.width)
+            last_y, last_x = divmod(last_pixel, target.width)
+            if first_y == last_y:
+                self._mark_dirty_rectangle(
+                    target.x + first_x,
+                    target.y + first_y,
+                    target.x + last_x + 1,
+                    target.y + last_y + 1,
+                )
+            else:
+                # A byte span crossing rows is represented conservatively as one
+                # rectangular dirty region; later checkpoint code may subdivide it.
+                self._mark_dirty_rectangle(
+                    target.x,
+                    target.y + first_y,
+                    target.x + target.width,
+                    target.y + last_y + 1,
+                )
 
     def write_json(self, obj, *, region: Optional[str] = None) -> None:
         payload = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
