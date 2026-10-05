@@ -230,6 +230,23 @@ class SpatialPixelStore:
     def frame_path(self) -> str:
         return self.path
 
+    @property
+    def document_header_bytes(self) -> int:
+        return _HEADER_SIZE
+
+    def estimate_value_size(self, value) -> int:
+        """Return deterministic binary encoded size without mutating storage."""
+        return len(_encode_value(value))
+
+    def estimate_document_size(self, values: Mapping) -> int:
+        """Return exact region bytes required for a root memory document."""
+        if not isinstance(values, Mapping):
+            raise TypeError("spatial memory document must be a mapping")
+        return _HEADER_SIZE + len(_encode_value(dict(values)))
+
+    def can_fit_document(self, values: Mapping) -> bool:
+        return self.estimate_document_size(values) <= self.capacity_bytes
+
     def _lock(self) -> FileLock:
         return FileLock(self._lock_path, timeout=self.lock_timeout)
 
