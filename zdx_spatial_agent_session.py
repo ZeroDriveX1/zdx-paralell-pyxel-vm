@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import os
 import threading
+from contextlib import contextmanager
 
 from zdx_agent_abi import (
     ROLE_MAILBOX_IN,
@@ -39,6 +40,7 @@ class SpatialAgentSession:
         self.manager = manager
         self.abi = abi
         self._mailboxes: dict[str, SpatialMailbox] = {}
+        self._memory_manager = None
         self._closed = False
         self._dirty = bool(dirty)
         self._lock = threading.RLock()
@@ -156,6 +158,32 @@ class SpatialAgentSession:
     def _ensure_open(self) -> None:
         if self._closed:
             raise RuntimeError("spatial agent session is closed")
+
+    @contextmanager
+    def locked(self):
+        """Hold the resident-session mutation lock for an atomic in-memory update."""
+        with self._lock:
+            self._ensure_open()
+            yield self
+
+    def mark_dirty(self) -> None:
+        """Mark resident state as requiring a later durable checkpoint."""
+        with self._lock:
+            self._ensure_open()
+            self._dirty = True
+
+    def memory_manager(self, policies=None):
+        """Return the namespaced/quota-aware persistent memory manager."""
+        with self._lock:
+            self._ensure_open()
+            if self._memory_manager is None:
+                from zdx_agent_memory_manager import SpatialAgentMemoryManager
+                self._memory_manager = SpatialAgentMemoryManager(self, policies=policies)
+            elif policies is not None:
+                raise ValueError(
+                    "memory manager is already initialized; policies cannot change mid-session"
+                )
+            return self._memory_manager
 
     def _activate_vm(self) -> None:
         marker = self.values["vm_checkpoint"]
@@ -278,3 +306,4 @@ class SpatialAgentSession:
             self.manager.close(flush=flush, timeout=timeout)
             self._closed = True
             self._mailboxes.clear()
+            self._memory_manager = None
