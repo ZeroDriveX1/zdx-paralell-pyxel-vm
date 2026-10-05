@@ -1,5 +1,33 @@
 # ZeroDriveX Release Notes
 
+## Pass 21.0 — Pyxel-native Tool Execution Control
+
+The Pyxel-native Agent Module now has an explicit capability boundary for
+external/tool actions. Tools must be explicitly registered and explicitly
+granted by a versioned policy; there is no generic shell, path, or ambient
+execution fallback.
+
+A canonical action hash binds the exact tool request, idempotency key, VM
+generation/checkpoint identity, and policy hash. Barrier-required actions write
+and durably checkpoint a pending intent before invoking the handler. Successful
+results are durably recorded afterward. A retry of the same action identity can
+reuse the recorded result rather than repeat the side effect; incomplete
+outcomes fail closed as ambiguous.
+
+An optional external authorization interface is designed for Axiomatic Runtime
+or equivalent policy engines. External decisions must echo the exact action and
+policy hashes. Deny, approval-required, stale/mismatched decisions, malformed
+responses, and authorizer failures do not execute the handler.
+
+Safety intent/result namespaces are non-evicting by default so idempotency
+records cannot disappear silently. Capacity exhaustion therefore stops new
+actions instead of weakening duplicate-execution protection.
+
+The action identity currently binds VM generation/checkpoint state, not every
+resident memory/mailbox byte. Broader resident-state and event lineage is the
+next provenance/replay layer.
+
+
 ## Pass 20.0 — Namespaced and Quota-aware Pyxel Agent Memory
 
 The Pyxel-native Agent Module now has deterministic logical memory namespaces
