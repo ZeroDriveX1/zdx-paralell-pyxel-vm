@@ -97,3 +97,24 @@ Native spatial mailboxes are bounded binary FIFO rings stored directly in ABI-bo
 Checkpoint barriers now use an internal monotonic snapshot ticket in addition to VM generation. This matters because mailbox/state mutations can occur without executing another VM instruction; an exact barrier waits for the specific frozen snapshot rather than merely observing that the same VM generation was previously committed.
 
 The next layers build on this foundation: namespaced/quota-aware memory, capability/tool authorization, replay/event journal, and dirty-region tracking.
+
+## SpatialAgentSession and Agent ABI v1 implementation
+
+Same-frame Pyxel-native agent execution now has a dedicated
+`SpatialAgentSession` lifecycle owner. The session owns the resident decoded
+frame, VM generation/state, Agent ABI, native mailboxes, checkpoint manager,
+recovery state, and clean shutdown/flush behavior. `ZDXAgentRuntime` delegates
+resident lifecycle to the session instead of directly managing frame/checkpoint
+internals.
+
+Agent ABI v1 binds semantic roles to named SpatialLayout regions and hashes the
+layout contract so a persisted agent cannot reopen under silently changed
+coordinate semantics. Native `SpatialMailbox` queues provide bounded,
+integrity-checked in-raster IPC for incoming/outgoing agent messages.
+
+`SpatialFrame.dirty_rectangles` is now a defined resident mutation tracker.
+Writes mark bounded half-open raster rectangles and overlapping/adjacent changes
+are conservatively coalesced. This is groundwork for later checkpoint
+scheduling/tiled-copy optimization; canonical durable checkpoints remain
+standards-valid whole PNG artifacts.
+
