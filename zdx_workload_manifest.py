@@ -35,7 +35,7 @@ class ZDXWorkloadManifest:
         if self.spatial_layout is None and isinstance(frame_payload, dict):
             layout = frame_payload.get("spatial_layout")
             if layout is not None:
-                self.spatial_layout = dict(layout)
+                self.spatial_layout = self._normalize_layout(layout)
         if self.execution_model == "spatial-png":
             if self.spatial_layout is None:
                 raise ValueError("spatial-png workload requires a spatial_layout")
@@ -43,7 +43,11 @@ class ZDXWorkloadManifest:
                 self.required_vm_features.append(SPATIAL_PNG_FEATURE)
             if isinstance(frame_payload, dict):
                 version = frame_payload.get("spatial_version", SPATIAL_FRAME_VERSION)
-                if version != SPATIAL_FRAME_VERSION:
+                if (
+                    isinstance(version, bool)
+                    or not isinstance(version, int)
+                    or version != SPATIAL_FRAME_VERSION
+                ):
                     raise ValueError(
                         f"unsupported spatial_version {version!r}; "
                         f"expected {SPATIAL_FRAME_VERSION}"
