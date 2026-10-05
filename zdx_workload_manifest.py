@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import time
 
+from zdx_spatial_frame import SPATIAL_FRAME_VERSION, SPATIAL_PNG_FEATURE, SpatialLayout
+
 
 class ZDXWorkloadManifest:
     def __init__(
@@ -34,17 +36,27 @@ class ZDXWorkloadManifest:
             layout = frame_payload.get("spatial_layout")
             if layout is not None:
                 self.spatial_layout = dict(layout)
-        if self.execution_model == "spatial-png" and "spatial-png-v1" not in self.required_vm_features:
-            self.required_vm_features.append("spatial-png-v1")
+        if self.execution_model == "spatial-png":
+            if self.spatial_layout is None:
+                raise ValueError("spatial-png workload requires a spatial_layout")
+            if SPATIAL_PNG_FEATURE not in self.required_vm_features:
+                self.required_vm_features.append(SPATIAL_PNG_FEATURE)
+            if isinstance(frame_payload, dict):
+                version = frame_payload.get("spatial_version", SPATIAL_FRAME_VERSION)
+                if version != SPATIAL_FRAME_VERSION:
+                    raise ValueError(
+                        f"unsupported spatial_version {version!r}; "
+                        f"expected {SPATIAL_FRAME_VERSION}"
+                    )
 
     @staticmethod
     def _normalize_layout(layout):
         if layout is None:
             return None
         if hasattr(layout, "to_dict"):
-            return layout.to_dict()
+            layout = layout.to_dict()
         if isinstance(layout, dict):
-            return dict(layout)
+            return SpatialLayout.from_dict(layout).to_dict()
         raise TypeError("spatial_layout must be a dict, expose to_dict(), or be None")
 
     def _frame_payload(self):
@@ -63,5 +75,6 @@ class ZDXWorkloadManifest:
         if self.required_vm_features:
             payload["required_vm_features"] = list(self.required_vm_features)
         if self.spatial_layout is not None:
+            payload["spatial_version"] = SPATIAL_FRAME_VERSION
             payload["spatial_layout"] = dict(self.spatial_layout)
         return payload
