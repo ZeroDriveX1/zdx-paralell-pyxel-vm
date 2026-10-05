@@ -238,3 +238,48 @@ def test_approval_required_cannot_be_downgraded_by_generic_evaluator(tmp_path):
     assert decision.status == "approval_required"
     assert decision.allowed is False
     runtime.close()
+
+
+@pytest.mark.parametrize("root", [
+    {
+        "version": 1,
+        "namespaces": {
+            "working": {
+                "quota_bytes": 1024,
+                "eviction": "fifo",
+                "items": {"a": 1},
+                "order": [],
+            }
+        },
+    },
+    {
+        "version": 1,
+        "namespaces": {
+            "working": {
+                "quota_bytes": 1024,
+                "eviction": "fifo",
+                "items": {"a": 1},
+                "order": ["a", "a"],
+            }
+        },
+    },
+    {
+        "version": 1,
+        "namespaces": {
+            "working": {
+                "quota_bytes": 1,
+                "eviction": "reject",
+                "items": {"a": "too large"},
+                "order": ["a"],
+            }
+        },
+    },
+])
+def test_namespaced_memory_rejects_malformed_persisted_roots(tmp_path, root):
+    _layout_value, _path, _memory, runtime, session = _session(tmp_path)
+    session.values["agent_memory_v1"] = root
+    from zdx_agent_memory_manager import AgentMemoryManager
+
+    with pytest.raises(ValueError):
+        AgentMemoryManager(session)
+    runtime.close(flush=False)
