@@ -201,6 +201,8 @@ Implemented on the Pyxel-native Agent Module feature branch:
 - exact tool/operation/resource-prefix authorization;
 - optional externally bound Axiomatic/policy authorizer interface;
 - durable pre-action intent and post-action result barriers;
+- successful-intent compaction after a durable non-evicting result exists;
+- bounded action canonicalization and immutable capability policy collections;
 - idempotent durable-result replay without repeated side effects;
 - fail-closed ambiguous-outcome handling;
 - non-evicting safety-state requirement for intent/result records;
