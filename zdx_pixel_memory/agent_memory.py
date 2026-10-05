@@ -100,6 +100,10 @@ class ZDXAgentMemory:
     def update(self, data: dict):
         if not isinstance(data, dict):
             raise TypeError("memory update requires a dictionary")
+        update = getattr(self._store, "update", None)
+        if callable(update):
+            update(data)
+            return
         for key, value in data.items():
             self._store.write(key, value)
 
