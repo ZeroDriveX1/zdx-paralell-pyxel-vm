@@ -67,7 +67,14 @@ MIT License. See [LICENSE](LICENSE).
 
 The canonical spatial runtime uses standards-valid RGB PNG frames as executable and state containers. Executable rows use the existing 16-opcode ISA; rows outside the execution plane are addressable data and may host agent memory.
 
-For same-frame agent workflows, the runtime uses a resident transaction path: lock and decode once, execute the in-memory raster, update the declared non-executable memory region, then atomically checkpoint once. Spatial task admission validates geometry, protocol version, worker capabilities, execution-row count, and a conservative raster working-set budget.
+For same-frame agent workflows, the runtime keeps the decoded raster resident and advances a deterministic VM generation/hash on every execution. Ordinary durability is asynchronous and interval-based (default: every 10 executions); exact barrier checkpoints remain available for consequential actions and shutdown. Spatial task admission validates geometry, protocol version, worker capabilities, execution-row count, conservative raster working-set budget, and running-lease RAM/thread reservations.
 
 See [SPATIAL_PNG.md](SPATIAL_PNG.md) for the machine contract and [ARCHITECTURE.md](ARCHITECTURE.md) for system integration.
 
+
+
+## Current distributed-node state
+
+Android and other constrained nodes can remain authenticated mesh participants even when normal compute is disabled by local policy. Support mode provides capability refresh, queue/routing visibility, authenticated heartbeat, advisory rectification requests, and lightweight Ed25519 re-attestation without downloading artifacts or executing Pyxel workloads.
+
+The coordinator now subtracts RAM and thread reservations from already-running leases before assigning additional work, and also honors registered static/safe worker limits. Release validation covers full Python suites on 3.11/3.12, repeated auth/re-auth/network-fault passes, repeated distributed compute/RAM/lease passes, persistence/power-loss recovery, and Android debug assembly plus lint. Physical Android-device and multi-host long-duration validation remain separate operational gates.
