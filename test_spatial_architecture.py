@@ -436,7 +436,7 @@ def test_async_checkpoint_every_ten_executions_and_hash_lineage(tmp_path):
 
     runtime.run_spatial(path)
     assert vm.execution_generation == 10
-    assert runtime._spatial_sessions[os.path.abspath(path)]["manager"].wait_for(10, timeout=5.0)
+    assert runtime._spatial_sessions[os.path.abspath(path)].manager.wait_for(10, timeout=5.0)
     assert open(path, "rb").read() != initial_bytes
 
     persisted = memory.snapshot()
