@@ -276,26 +276,61 @@ class SpatialPixelStore:
     def _open_frame(self, path: Path | None = None) -> SpatialFrame:
         return SpatialFrame.open(str(path or self.path), self.layout)
 
-    def _read_unlocked(self) -> tuple[dict, int]:
+    def _execution_plane_matches(self, primary: SpatialFrame, backup: SpatialFrame) -> bool:
+        if self.layout.execution_rows == 0:
+            return True
+        length = self.layout.execution_region.capacity_bytes
+        primary_bytes = primary.read_bytes(length, region="execution")
+        backup_bytes = backup.read_bytes(length, region="execution")
+        return secrets.compare_digest(
+            hashlib.sha256(primary_bytes).digest(),
+            hashlib.sha256(backup_bytes).digest(),
+        )
+
+    def _read_frame_unlocked(self) -> tuple[SpatialFrame, dict, int]:
         target = Path(self.path)
+        primary_frame = None
         try:
-            return self._decode_document(self._open_frame())
+            primary_frame = self._open_frame()
+            values, generation = self._decode_document(primary_frame)
+            return primary_frame, values, generation
         except Exception as primary:
             quarantine = Path(str(target) + f".corrupt.{int(time.time())}")
             backup = Path(str(target) + ".bak")
-            if target.exists():
-                os.replace(target, quarantine)
+            recovered = None
             if backup.exists():
                 try:
-                    frame = self._open_frame(backup)
-                    values, generation = self._decode_document(frame)
-                    atomic_write_bytes(target, backup.read_bytes(), keep_backup=False)
-                    return values, generation
+                    backup_frame = self._open_frame(backup)
+                    values, generation = self._decode_document(backup_frame)
+                    if primary_frame is not None and self._execution_plane_matches(primary_frame, backup_frame):
+                        recovered = (backup_frame, values, generation)
+                    elif self.layout.execution_rows == 0:
+                        recovered = (backup_frame, values, generation)
                 except Exception:
-                    pass
+                    recovered = None
+            if target.exists():
+                os.replace(target, quarantine)
+            if recovered is not None:
+                backup_frame, values, generation = recovered
+                atomic_write_bytes(target, backup_frame.to_png_bytes(), keep_backup=False)
+                return backup_frame, values, generation
+            reason = (
+                "backup execution plane differs from current frame"
+                if backup.exists() and self.layout.execution_rows > 0
+                else "no valid compatible backup"
+            )
             raise CorruptStateError(
-                f"corrupt spatial memory quarantined at {quarantine}"
+                f"corrupt spatial memory quarantined at {quarantine}; {reason}"
             ) from primary
+
+    def _read_unlocked(self) -> tuple[dict, int]:
+        _, values, generation = self._read_frame_unlocked()
+        return values, generation
+
+    def _write_frame_unlocked(self, frame: SpatialFrame, values: dict, generation: int) -> None:
+        document = self._encode_document(values, generation + 1)
+        frame.write_bytes(b"\x00" * self.capacity_bytes, region=self.region)
+        frame.write_bytes(document, region=self.region)
 
     def _write_unlocked(self, values: dict, generation: int | None = None) -> None:
         target = Path(self.path)
@@ -311,10 +346,25 @@ class SpatialPixelStore:
         else:
             frame = SpatialFrame.blank(self.layout)
             current_generation = generation or 0
-        document = self._encode_document(values, current_generation + 1)
-        frame.write_bytes(b"\x00" * self.capacity_bytes, region=self.region)
-        frame.write_bytes(document, region=self.region)
+        self._write_frame_unlocked(frame, values, current_generation)
         atomic_write_bytes(target, frame.to_png_bytes())
+
+    def transaction_frame(self, mutator):
+        """Run one locked resident-frame transaction and checkpoint once.
+
+        mutator(frame, values) may execute the resident VM raster and mutate
+        the supplied memory dictionary. If it raises, no PNG commit occurs.
+        """
+        if not callable(mutator):
+            raise TypeError("spatial frame transaction requires a callable")
+        with self._lock():
+            frame, values, generation = self._read_frame_unlocked()
+            result = mutator(frame, values)
+            if not isinstance(values, dict):
+                raise TypeError("spatial frame transaction memory root must remain a dictionary")
+            self._write_frame_unlocked(frame, values, generation)
+            atomic_write_bytes(self.path, frame.to_png_bytes())
+            return result
 
     def write(self, key: str, value) -> str:
         if not isinstance(key, str) or not key:
