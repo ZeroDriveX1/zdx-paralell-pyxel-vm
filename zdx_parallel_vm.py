@@ -191,9 +191,11 @@ class ParallelPyxelVM:
     # Internal: execute a single frame, return next_frame path or None
     # ------------------------------------------------------------------
 
-    def _execute_single(self, image_path: str):
-        img = Image.open(image_path).convert("RGB")
-        arr = np.array(img, dtype=np.uint8)
+    def _execute_array(self, arr: np.ndarray, source_label: str = "<resident-raster>"):
+        """Execute one already-decoded RGB raster without PNG re-decoding."""
+        arr = np.asarray(arr)
+        if arr.dtype != np.uint8 or arr.ndim != 3 or arr.shape[2] != 3:
+            raise ValueError("VM raster must be an HxWx3 uint8 RGB array")
         width = arr.shape[1]
         height = arr.shape[0]
 
@@ -367,12 +369,17 @@ class ParallelPyxelVM:
         if _step >= self.max_col_steps and x < width:
             raise RuntimeError(
                 f"max_col_steps ({self.max_col_steps}) reached in frame "
-                f"'{image_path}' at column {x}/{width}. "
+                f"'{source_label}' at column {x}/{width}. "
                 f"Likely a JMP loop with no exit; raise max_col_steps on the VM "
                 f"constructor if this is intentional."
             )
 
         return next_frame
+
+    def _execute_single(self, image_path: str):
+        with Image.open(image_path) as img:
+            arr = np.array(img.convert("RGB"), dtype=np.uint8)
+        return self._execute_array(arr, source_label=image_path)
 
     # ------------------------------------------------------------------
     # Public: chain frames up to self.max_chain deep
