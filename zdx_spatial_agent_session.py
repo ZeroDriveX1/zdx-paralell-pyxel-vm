@@ -13,6 +13,7 @@ from zdx_agent_abi import (
     ROLE_PROVENANCE,
     SpatialAgentABI,
 )
+from zdx_agent_capabilities import AgentCapabilityGateway
 from zdx_agent_journal import SpatialEventJournal
 from zdx_agent_memory_manager import AgentMemoryManager
 from zdx_checkpoint import SpatialCheckpointManager, checkpoint_hash_from_memory
@@ -44,6 +45,7 @@ class SpatialAgentSession:
         self._mailboxes: dict[str, SpatialMailbox] = {}
         self._journal: SpatialEventJournal | None = None
         self._memory_manager: AgentMemoryManager | None = None
+        self._capability_gateway: AgentCapabilityGateway | None = None
         self._closed = False
         self._dirty = bool(dirty)
         self._dirty_roles: set[str] = set()
@@ -205,6 +207,29 @@ class SpatialAgentSession:
                 self._memory_manager = AgentMemoryManager(self)
             return self._memory_manager
 
+    def install_capability_gateway(
+        self, gateway: AgentCapabilityGateway
+    ) -> str | None:
+        with self._lock:
+            self._ensure_open()
+            if not isinstance(gateway, AgentCapabilityGateway):
+                raise TypeError("gateway must be an AgentCapabilityGateway")
+            manifest = gateway.install(self)
+            self._capability_gateway = gateway
+            return manifest
+
+    def decide_action(self, *, capability: str, action: str, arguments: dict):
+        with self._lock:
+            self._ensure_open()
+            if self._capability_gateway is None:
+                raise RuntimeError("no capability gateway is installed")
+            return self._capability_gateway.decide(
+                self,
+                capability=capability,
+                action=action,
+                arguments=arguments,
+            )
+
     def journal(self, *, slot_size: int = 384) -> SpatialEventJournal:
         with self._lock:
             self._ensure_open()
@@ -356,3 +381,4 @@ class SpatialAgentSession:
             self._mailboxes.clear()
             self._journal = None
             self._memory_manager = None
+            self._capability_gateway = None
