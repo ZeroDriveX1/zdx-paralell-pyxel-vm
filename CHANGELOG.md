@@ -358,3 +358,5 @@ All code follows these standards:
 - Added conservative raster dirty-rectangle tracking and semantic dirty-role tracking.
 - Kept full PNG encoding as the durability mechanism; dirty tracking does not claim incremental PNG persistence.
 - Added regression coverage for quotas/eviction, malformed namespaces, journal rollover/tamper, capability-table tamper, state-bound action hashes, approval enforcement, and dirty acknowledgement.
+- Required verified provenance for capability authorization and bound action envelopes to the exact installed capability-manifest SHA-256.
+
