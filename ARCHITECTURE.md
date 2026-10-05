@@ -84,11 +84,16 @@ Rectification is advisory. Long-lived authentication, verified replay patterns, 
 
 Distributed RAM/CPU admission is reservation-based rather than per-poll. A worker's effective claim budget is bounded by its reported availability, registered static capability, configured safe limit, and resources already reserved by that worker's running leases. This prevents repeated polling from overcommitting the same RAM or execution threads.
 
-## Next agent-module architecture
+## Pyxel-native Agent Module v1 foundation
 
-The next core layer is intentionally separate from ZDX AgentCore:
+The Pyxel-native Agent Module remains intentionally separate from ZDX AgentCore.
 
-- `SpatialAgentSession`: owns one resident frame, VM generation, checkpoint manager, lifecycle, and recovery.
-- Agent ABI v1: versioned region-role contract for execution, mailboxes, working/persistent memory, capabilities, and provenance.
-- Native spatial mailboxes: bounded in-raster message queues with sequence/integrity metadata.
-- Later layers build on those contracts: memory namespaces/quotas, capability/tool gateway, replay journal, and dirty-region tracking.
+`SpatialAgentSession` now owns a same-frame resident raster, VM state activation/recovery, Agent ABI metadata, native mailboxes, dirty resident state, and asynchronous checkpoint lifecycle. `ZDXAgentRuntime` delegates same-frame execution to this session rather than directly managing frame/checkpoint dictionaries.
+
+Agent ABI v1 binds semantic roles to distinct named non-executable regions and pins those bindings to a SHA-256 of the exact `SpatialLayout`. A persisted ABI cannot be silently rebound to another region layout after restart. Current roles are persistent memory, working memory, inbound/outbound mailbox, capabilities, and provenance.
+
+Native spatial mailboxes are bounded binary FIFO rings stored directly in ABI-bound PNG regions. Messages carry monotonic sequence numbers, sender/recipient/topic metadata, bounded payloads, and a domain-separated SHA-256 integrity digest. Corrupt slots fail closed.
+
+Checkpoint barriers now use an internal monotonic snapshot ticket in addition to VM generation. This matters because mailbox/state mutations can occur without executing another VM instruction; an exact barrier waits for the specific frozen snapshot rather than merely observing that the same VM generation was previously committed.
+
+The next layers build on this foundation: namespaced/quota-aware memory, capability/tool authorization, replay/event journal, and dirty-region tracking.
