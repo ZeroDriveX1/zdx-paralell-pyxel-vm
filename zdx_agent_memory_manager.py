@@ -265,21 +265,22 @@ class SpatialAgentMemoryManager:
         return sorted(self._policies)
 
     def usage(self, namespace: str | None = None) -> dict:
-        root = self._root()
-        names = [namespace] if namespace is not None else self.namespaces()
-        result = {}
-        for name in names:
-            self._require_namespace(name)
-            entries = root["namespaces"][name]["entries"]
-            policy = self._policies[name]
-            result[name] = {
-                "entries": len(entries),
-                "encoded_bytes": self._namespace_encoded_size(root, name),
-                "max_entries": policy.max_entries,
-                "max_bytes": policy.max_bytes,
-                "eviction": policy.eviction,
-            }
-        return result
+        with self.session.locked():
+            root = self._root()
+            names = [namespace] if namespace is not None else self.namespaces()
+            result = {}
+            for name in names:
+                self._require_namespace(name)
+                entries = root["namespaces"][name]["entries"]
+                policy = self._policies[name]
+                result[name] = {
+                    "entries": len(entries),
+                    "encoded_bytes": self._namespace_encoded_size(root, name),
+                    "max_entries": policy.max_entries,
+                    "max_bytes": policy.max_bytes,
+                    "eviction": policy.eviction,
+                }
+            return result
 
     def _require_namespace(self, namespace: str) -> MemoryNamespacePolicy:
         if namespace not in self._policies:
@@ -289,20 +290,23 @@ class SpatialAgentMemoryManager:
     def get(self, namespace: str, key: str, default=None):
         self._require_namespace(namespace)
         self._validate_key(key)
-        record = self._root()["namespaces"][namespace]["entries"].get(key)
-        return copy.deepcopy(record["value"]) if record is not None else default
+        with self.session.locked():
+            record = self._root()["namespaces"][namespace]["entries"].get(key)
+            return copy.deepcopy(record["value"]) if record is not None else default
 
     def keys(self, namespace: str) -> list[str]:
         self._require_namespace(namespace)
-        return sorted(self._root()["namespaces"][namespace]["entries"])
+        with self.session.locked():
+            return sorted(self._root()["namespaces"][namespace]["entries"])
 
     def snapshot(self, namespace: str) -> dict:
         self._require_namespace(namespace)
-        entries = self._root()["namespaces"][namespace]["entries"]
-        return {
-            key: copy.deepcopy(record["value"])
-            for key, record in sorted(entries.items())
-        }
+        with self.session.locked():
+            entries = self._root()["namespaces"][namespace]["entries"]
+            return {
+                key: copy.deepcopy(record["value"])
+                for key, record in sorted(entries.items())
+            }
 
     def set(self, namespace: str, key: str, value) -> None:
         self._require_namespace(namespace)
