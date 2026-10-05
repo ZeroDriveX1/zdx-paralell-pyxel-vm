@@ -332,3 +332,14 @@ All code follows these standards:
 - Fixed distributed coordinator RAM/thread overcommit by subtracting active lease reservations and honoring registered static/safe limits.
 - Added integrated release tests for auth/re-auth, distributed compute, RAM budgets, lease restart/recovery, and resource-policy/coordinator agreement.
 - Added comprehensive release-validation CI across Python 3.11/3.12, repeated network/resource stress, persistence/power-loss recovery, and Android assemble+lint.
+
+
+## [Unreleased] - Pyxel-native Agent Module v1 Foundation
+
+- Added `SpatialAgentSession` as the lifecycle owner for same-frame resident execution, recovery, ABI, mailbox, and checkpoint state.
+- Added versioned Agent ABI v1 with layout-hash pinning and distinct semantic region bindings.
+- Added bounded binary spatial inbox/outbox rings with monotonic sequence numbers and domain-separated SHA-256 message integrity.
+- Refactored `ZDXAgentRuntime` same-frame execution through the session abstraction.
+- Added dirty-session tracking so clean flush/close persists state even before the normal 10-execution checkpoint interval.
+- Added checkpoint request tickets so exact barriers wait for the requested frozen snapshot even when multiple states share one VM generation.
+- Added tests for ABI rebinding rejection, mailbox FIFO/full/wrap/tamper behavior, restart persistence, clean-close durability, and same-generation exact barriers.
