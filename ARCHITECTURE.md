@@ -58,3 +58,17 @@ persists safe settings. It can receive, resume, verify, and return a bounded
 artifact probe. It fails closed for ordinary Pyxel workloads because the APK
 does not embed the Python/Pyxel VM; Android is not advertised as a full Pyxel
 worker until that signed adapter and device validation exist.
+
+## Asynchronous spatial checkpoints
+
+Same-frame spatial agent execution keeps the decoded frame and agent state resident. The VM advances a deterministic execution generation and checkpoint hash on every completed execution. Ordinary durability is interval-based (default: every 10 executions), not per-execution.
+
+Checkpoint requests are handled by a single coalescing worker. Non-barrier requests are latest-wins so persistence cannot accumulate an unbounded backlog when compute runs faster than PNG encoding. A barrier checkpoint forces the exact requested generation durable before returning.
+
+Each durable checkpoint records two identities:
+
+- `vm_checkpoint_hash`: SHA-256 over canonical VM generation/clock/register/shared state;
+- `artifact_sha256`: SHA-256 over the exact committed PNG bytes.
+
+The checkpoint worker independently recomputes the VM hash from the frozen snapshot before commit. Checkpoint commits use artifact compare-and-swap protection so an external frame mutation cannot be overwritten silently. On restart, the runtime verifies and restores the last durable generation before continuing.
+
