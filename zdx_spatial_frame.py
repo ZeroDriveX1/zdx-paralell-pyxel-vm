@@ -276,6 +276,10 @@ class SpatialFrame:
         self.image = image.copy()
         self.layout = layout
 
+    def clone(self) -> "SpatialFrame":
+        """Return an independent frozen-capable copy of this decoded raster."""
+        return SpatialFrame(self.image.copy(), self.layout)
+
     @classmethod
     def blank(cls, layout: SpatialLayout) -> "SpatialFrame":
         return cls(Image.new("RGB", (layout.width, layout.height), _NOP), layout)
