@@ -67,6 +67,19 @@ class ComputeTask:
             raise ValueError("memory_mb, threads, and max_seconds must be positive")
         if not isinstance(self.metadata, dict):
             raise ValueError("metadata must be an object")
+        execution_model = self.metadata.get("execution_model")
+        if execution_model not in (None, "pixel-frame", "spatial-png"):
+            raise ValueError("unsupported execution_model")
+        required = self.metadata.get("required_vm_features", [])
+        if not isinstance(required, list) or any(not isinstance(item, str) or not item for item in required):
+            raise ValueError("required_vm_features must be a list of non-empty strings")
+        if execution_model == "spatial-png":
+            layout = self.metadata.get("spatial_layout")
+            if not isinstance(layout, dict):
+                raise ValueError("spatial-png task requires spatial_layout metadata")
+            if "spatial-png-v1" not in required:
+                required = [*required, "spatial-png-v1"]
+                self.metadata = {**self.metadata, "required_vm_features": required}
         return self
 
     @classmethod
@@ -150,9 +163,13 @@ class ComputeCoordinator:
                 raise ValueError(f"worker is not registered: {worker_id}")
             worker["last_seen"] = time.time()
             candidates = sorted(self._state["queued"].values(), key=lambda item: (item["created_at"], item["task_id"]))
+            worker_features = set(worker.get("capabilities", {}).get("vm_features", []) or [])
             for raw in candidates:
                 task = ComputeTask.from_dict(raw)
                 if task.memory_mb > available_memory_mb or task.threads > max(1, cpu_count):
+                    continue
+                required_features = set(task.metadata.get("required_vm_features", []) or [])
+                if not required_features.issubset(worker_features):
                     continue
                 del self._state["queued"][task.task_id]
                 now = time.time()
@@ -261,10 +278,17 @@ def execute_task(task: ComputeTask) -> dict:
     actual_hash = sha256_file(task.frame_path)
     if task.frame_sha256 and actual_hash != task.frame_sha256:
         raise ValueError(f"frame hash mismatch: expected {task.frame_sha256}, got {actual_hash}")
-    from zdx_parallel_vm import ParallelPyxelVM
-
     started = time.time()
-    vm = ParallelPyxelVM(threads=task.threads)
+    execution_model = task.metadata.get("execution_model", "pixel-frame")
+    if execution_model == "spatial-png":
+        from zdx_spatial_frame import SpatialLayout, SpatialPyxelVM
+        layout = SpatialLayout.from_dict(task.metadata["spatial_layout"])
+        vm = SpatialPyxelVM(layout=layout, strict_mode=True)
+        execute = vm.execute_spatial
+    else:
+        from zdx_parallel_vm import ParallelPyxelVM
+        vm = ParallelPyxelVM(threads=task.threads, strict_mode=True)
+        execute = vm.execute_texture
     previous_handler = None
     previous_timer = None
     timed = threading.current_thread() is threading.main_thread() and hasattr(signal, "SIGALRM")
@@ -278,8 +302,14 @@ def execute_task(task: ComputeTask) -> dict:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.setitimer(signal.ITIMER_REAL, task.max_seconds)
     try:
-        vm.execute_texture(task.frame_path)
-        return {"task_id": task.task_id, "registers": vm.registers, "shared": vm.shared, "elapsed_seconds": time.time() - started}
+        execute(task.frame_path)
+        return {
+            "task_id": task.task_id,
+            "execution_model": execution_model,
+            "registers": vm.registers,
+            "shared": vm.shared,
+            "elapsed_seconds": time.time() - started,
+        }
     finally:
         if timed:
             signal.setitimer(signal.ITIMER_REAL, 0)
