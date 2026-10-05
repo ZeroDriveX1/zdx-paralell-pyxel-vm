@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import secrets
 import struct
 from dataclasses import dataclass
 
@@ -200,7 +201,7 @@ class SpatialMailbox:
         c = b + topic_len
         sender_b, recipient_b, topic_b, payload = body[:a], body[a:b], body[b:c], body[c:]
         expected = self._message_digest(sequence, sender_b, recipient_b, topic_b, payload)
-        if not hashlib.sha256(digest).digest() == hashlib.sha256(expected).digest():
+        if not secrets.compare_digest(digest, expected):
             raise ValueError("spatial mailbox message digest mismatch")
         try:
             sender = sender_b.decode("utf-8")
