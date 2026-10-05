@@ -52,6 +52,7 @@ def checkpoint_hash_from_memory(values: dict) -> str:
 
 @dataclass(frozen=True)
 class SpatialCheckpointRequest:
+    request_id: int
     frame: object
     values: dict
     generation: int
@@ -78,6 +79,9 @@ class SpatialCheckpointManager:
         self._closed = False
         self._last_committed_generation = 0
         self._last_committed_hash = ""
+        self._next_request_id = 1
+        self._last_submitted_request_id = 0
+        self._last_committed_request_id = 0
         self._error: Exception | None = None
         self._current_artifact_sha256 = initial_artifact_sha256
         self._worker = threading.Thread(
@@ -102,7 +106,12 @@ class SpatialCheckpointManager:
         actual = checkpoint_hash_from_memory(values)
         if actual != checkpoint_hash:
             raise ValueError("VM checkpoint hash does not match frozen snapshot state")
+        with self._condition:
+            request_id = self._next_request_id
+            self._next_request_id += 1
+            self._last_submitted_request_id = request_id
         request = SpatialCheckpointRequest(
+            request_id=request_id,
             frame=frame.clone(),
             values=copy.deepcopy(values),
             generation=generation,
@@ -130,7 +139,18 @@ class SpatialCheckpointManager:
             self._condition.notify_all()
 
         if barrier:
-            self.wait_for(generation)
+            self.wait_for_request(request_id)
+        return request_id
+
+    def wait_for_request(self, request_id: int, timeout: float | None = None) -> bool:
+        with self._condition:
+            ok = self._condition.wait_for(
+                lambda: self._last_committed_request_id >= request_id or self._error is not None,
+                timeout=timeout,
+            )
+            if self._error is not None:
+                raise RuntimeError("checkpoint worker failed") from self._error
+            return bool(ok and self._last_committed_request_id >= request_id)
 
     def wait_for(self, generation: int, timeout: float | None = None) -> bool:
         with self._condition:
@@ -144,8 +164,10 @@ class SpatialCheckpointManager:
 
     def flush(self, timeout: float | None = None) -> bool:
         with self._condition:
-            target = self._pending.generation if self._pending is not None else self._last_committed_generation
-        return self.wait_for(target, timeout=timeout)
+            target = self._last_submitted_request_id
+        if target == 0:
+            return True
+        return self.wait_for_request(target, timeout=timeout)
 
     def close(self, *, flush: bool = True, timeout: float | None = None):
         if flush:
@@ -180,6 +202,7 @@ class SpatialCheckpointManager:
                     expected_artifact_sha256=self._current_artifact_sha256,
                 )
                 manifest = {
+                    "checkpoint_request_id": request.request_id,
                     "generation": request.generation,
                     "vm_checkpoint_hash": request.checkpoint_hash,
                     "artifact_sha256": artifact["artifact_sha256"],
@@ -189,6 +212,7 @@ class SpatialCheckpointManager:
                 with self._condition:
                     self._last_committed_generation = request.generation
                     self._last_committed_hash = request.checkpoint_hash
+                    self._last_committed_request_id = request.request_id
                     self._current_artifact_sha256 = artifact["artifact_sha256"]
                     self._condition.notify_all()
             except Exception as exc:
