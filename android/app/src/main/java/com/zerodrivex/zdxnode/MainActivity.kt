@@ -223,6 +223,7 @@ class MainActivity : Activity() {
         val queueFailed = status.getInt("queue_failed", 0)
         val clusterMaster = status.getString("cluster_master", null)
         val rectificationPending = status.getInt("rectification_pending", 0)
+        val lastReattestAt = status.getLong("last_reattest_at", 0L)
 
         statusView.text = message
         statusView.setTextColor(
@@ -256,6 +257,10 @@ class MainActivity : Activity() {
                 .append(queueFailed).append(" failed")
             if (!clusterMaster.isNullOrBlank()) append("\nCluster master: ").append(clusterMaster)
             append("\nTrust review queue: ").append(rectificationPending).append(" pending")
+            if (lastReattestAt > 0L) {
+                append("\nLast lightweight re-auth: ")
+                    .append(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(lastReattestAt)))
+            }
         }
 
         capabilityView.text = capabilitySummary(DeviceCapabilityCollector(this).collect())
