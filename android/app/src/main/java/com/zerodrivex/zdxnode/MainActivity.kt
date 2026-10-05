@@ -222,6 +222,7 @@ class MainActivity : Activity() {
         val queueCompleted = status.getInt("queue_completed", 0)
         val queueFailed = status.getInt("queue_failed", 0)
         val clusterMaster = status.getString("cluster_master", null)
+        val rectificationPending = status.getInt("rectification_pending", 0)
 
         statusView.text = message
         statusView.setTextColor(
@@ -254,6 +255,7 @@ class MainActivity : Activity() {
                 .append(queueCompleted).append(" completed · ")
                 .append(queueFailed).append(" failed")
             if (!clusterMaster.isNullOrBlank()) append("\nCluster master: ").append(clusterMaster)
+            append("\nTrust review queue: ").append(rectificationPending).append(" pending")
         }
 
         capabilityView.text = capabilitySummary(DeviceCapabilityCollector(this).collect())
