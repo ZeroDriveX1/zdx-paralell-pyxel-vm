@@ -96,4 +96,4 @@ Native spatial mailboxes are bounded binary FIFO rings stored directly in ABI-bo
 
 Checkpoint barriers now use an internal monotonic snapshot ticket in addition to VM generation. This matters because mailbox/state mutations can occur without executing another VM instruction; an exact barrier waits for the specific frozen snapshot rather than merely observing that the same VM generation was previously committed.
 
-The next layers build on this foundation: namespaced/quota-aware memory, capability/tool authorization, replay/event journal, and dirty-region tracking.
+`SpatialFrame.dirty_rectangles` now tracks bounded half-open resident mutations and conservatively coalesces overlapping/adjacent regions. The next layers build on this foundation: namespaced/quota-aware memory, capability/tool authorization, replay/event journal, and dirty-region-aware checkpoint/tiled-copy optimization.
