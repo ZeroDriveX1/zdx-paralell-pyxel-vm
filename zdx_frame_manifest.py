@@ -10,6 +10,8 @@ from __future__ import annotations
 import hashlib
 import time
 
+from zdx_spatial_frame import SPATIAL_FRAME_VERSION, SpatialLayout
+
 
 class ZDXFrameManifest:
     def __init__(
@@ -18,14 +20,19 @@ class ZDXFrameManifest:
         *,
         frame_format: str = "png",
         spatial_layout=None,
-        spatial_version: int = 1,
+        spatial_version: int = SPATIAL_FRAME_VERSION,
     ):
         self.frame_hash = hashlib.sha256(frame_data).hexdigest()
         self.size = len(frame_data)
         self.created = time.time()
         self.frame_format = frame_format
         self.spatial_layout = self._normalize_layout(spatial_layout)
-        self.spatial_version = spatial_version if self.spatial_layout is not None else None
+        if self.spatial_layout is not None and spatial_version != SPATIAL_FRAME_VERSION:
+            raise ValueError(
+                f"unsupported spatial_version {spatial_version!r}; "
+                f"expected {SPATIAL_FRAME_VERSION}"
+            )
+        self.spatial_version = SPATIAL_FRAME_VERSION if self.spatial_layout is not None else None
         self.execution_model = "spatial-png" if self.spatial_layout is not None else "pixel-frame"
 
     @staticmethod
@@ -33,9 +40,9 @@ class ZDXFrameManifest:
         if layout is None:
             return None
         if hasattr(layout, "to_dict"):
-            return layout.to_dict()
+            layout = layout.to_dict()
         if isinstance(layout, dict):
-            return dict(layout)
+            return SpatialLayout.from_dict(layout).to_dict()
         raise TypeError("spatial_layout must be a dict, expose to_dict(), or be None")
 
     def payload(self):
