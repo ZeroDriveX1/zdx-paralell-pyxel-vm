@@ -19,6 +19,14 @@ transport errors. The live status area also shows the current task, last task,
 last completed-work summary, policy eligibility reason, charging/idle state,
 free RAM, compute memory limit, and preserved free-memory reserve.
 
+When compute is disabled or temporarily blocked by policy, the node remains a
+useful authenticated mesh participant. It enters light/sync support mode,
+refreshes capabilities and policy state, sends authenticated heartbeats, and
+receives queue/cluster routing status without polling for or executing compute
+leases. Support mode is intentionally non-authoritative: it helps the scheduler
+with fresh availability/routing information but cannot bypass local compute
+policy or become a scheduler authority.
+
 ## Build a signed release APK
 
 The repository does not include the Gradle wrapper, Android SDK, release
