@@ -22,6 +22,7 @@ class NodeService : Service() {
     private lateinit var meshStore: MeshSettingsStore
     private lateinit var admission: AndroidResourceAdmission
     private lateinit var taskExecutor: AndroidTaskExecutor
+    private lateinit var workEvents: WorkEventStore
     private val handler = Handler(Looper.getMainLooper())
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val cycleActive = AtomicBoolean(false)
@@ -34,16 +35,17 @@ class NodeService : Service() {
             if (!serviceActive.get()) return
             val policy = policyStore.load()
             val settings = meshStore.load()
+            val policyBlock = admission.blockReason(policy)
             var cycleStarted = false
-            if (settings.enabled && settings.transportConfig().isConfigured() && admission.canRun(policy) && cycleActive.compareAndSet(false, true)) {
+            if (settings.enabled && settings.transportConfig().isConfigured() && policyBlock == null && cycleActive.compareAndSet(false, true)) {
                 cycleStarted = true
                 ioExecutor.execute { runMeshCycle(settings) }
             } else if (!settings.enabled) {
-                updateStatus(false, "disabled")
+                updateStatus(false, "disabled", workState = "DISABLED")
             } else if (!settings.transportConfig().isConfigured()) {
-                updateStatus(false, "mesh not configured")
-            } else if (!admission.canRun(policy)) {
-                updateStatus(false, "paused by device resource policy")
+                updateStatus(false, "mesh not configured", workState = "UNCONFIGURED")
+            } else if (policyBlock != null) {
+                updateStatus(false, "policy paused: $policyBlock", workState = "POLICY_BLOCKED")
             }
             if (!cycleStarted && serviceActive.get()) {
                 handler.postDelayed(this, retryDelayMs)
@@ -57,6 +59,8 @@ class NodeService : Service() {
         meshStore = MeshSettingsStore(this)
         admission = AndroidResourceAdmission(this)
         taskExecutor = AndroidTaskExecutor(this)
+        workEvents = WorkEventStore(this)
+        workEvents.append("SERVICE", "background node service created")
         createNotificationChannel()
         startForeground(1001, notification("starting"))
     }
