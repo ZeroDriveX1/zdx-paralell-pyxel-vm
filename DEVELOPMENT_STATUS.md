@@ -150,3 +150,24 @@ replay-pattern, and rate-limit-pattern reviews intentionally remain pending.
 No compute lease, artifact download, VM execution, or hidden compute-policy
 override is involved.
 
+## Comprehensive release validation pass 18.0
+
+A dedicated cross-subsystem release-validation workflow now checks the complete
+Python suite on Python 3.11 and 3.12, repeated authentication/re-attestation/TLS
+and network-fault scenarios, repeated distributed compute/resource/lease/spatial
+admission scenarios, persistence/corruption/power-loss recovery, and Android
+debug assembly plus lint.
+
+The integrated release tests exercise a real authenticated socket round-trip for
+stale-authentication re-attestation, invalid inner-proof rejection, one-time
+challenge behavior, review-scope separation, resource-policy RAM budgeting,
+distributed worker selection, lease persistence/restart, and coordinator RAM/CPU
+reservation across concurrent running tasks.
+
+This pass found and fixed a coordinator resource-accounting defect: repeated
+worker polls could previously evaluate each new task against the same reported
+available RAM/CPU without subtracting resources reserved by that worker's
+existing leases. Claims now subtract running-task RAM and thread reservations
+and are capped by registered static/safe worker limits, preventing lease-level
+overcommit.
+
