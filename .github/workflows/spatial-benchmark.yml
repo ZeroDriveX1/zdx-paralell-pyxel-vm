@@ -1,0 +1,39 @@
+name: spatial-benchmark
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'zdx_spatial_benchmark.py'
+      - 'zdx_spatial_frame.py'
+      - 'zdx_agent_runtime.py'
+      - 'zdx_pixel_memory/**'
+      - '.github/workflows/spatial-benchmark.yml'
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: Benchmark iterations
+        required: false
+        default: '50'
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -r requirements-security.txt
+      - name: Run spatial benchmark
+        run: |
+          ITERATIONS="${{ github.event.inputs.iterations || '50' }}"
+          python zdx_spatial_benchmark.py --iterations "$ITERATIONS" --output validation_results/spatial_resident_benchmark.json
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: spatial-resident-benchmark
+          path: validation_results/spatial_resident_benchmark.json
