@@ -59,6 +59,9 @@ def test_namespaced_memory_enforces_exact_quota_and_fifo_eviction(tmp_path):
     assert stats["used_bytes"] <= stats["quota_bytes"]
     assert manager.get("working", "k7") == "x" * 80
     assert stats["items"] < 8
+    memory_events = [record.event_type for record in session.journal().records()]
+    assert "memory.configure" in memory_events
+    assert "memory.put" in memory_events
 
     manager.configure("facts", quota_bytes=220, eviction="reject")
     with pytest.raises(ValueError, match="quota exceeded"):
@@ -241,6 +244,11 @@ def test_approval_required_cannot_be_downgraded_by_generic_evaluator(tmp_path):
 
 
 @pytest.mark.parametrize("root", [
+    {
+        "version": 1,
+        "namespaces": {},
+        "unexpected": True,
+    },
     {
         "version": 1,
         "namespaces": {
