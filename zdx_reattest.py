@@ -29,8 +29,8 @@ class ReattestationChallengeStore:
             "request_id": challenge["request_id"],
             "node_id": challenge["node_id"],
             "nonce": challenge["nonce"],
-            "issued_at": float(challenge["issued_at"]),
-            "expires_at": float(challenge["expires_at"]),
+            "issued_at_ms": int(challenge["issued_at_ms"]),
+            "expires_at_ms": int(challenge["expires_at_ms"]),
         }
 
     def cleanup(self, now: float | None = None) -> int:
@@ -38,7 +38,7 @@ class ReattestationChallengeStore:
         challenges = self._state.setdefault("challenges", {})
         expired = [
             key for key, value in challenges.items()
-            if float(value.get("expires_at", 0.0)) <= current
+            if int(value.get("expires_at_ms", 0)) <= int(current * 1000)
             or value.get("status") in {"verified", "failed", "expired"}
         ]
         for key in expired:
@@ -69,7 +69,7 @@ class ReattestationChallengeStore:
                 if item.get("request_id") == request_id
                 and item.get("node_id") == node_id
                 and item.get("status") == "pending"
-                and float(item.get("expires_at", 0.0)) > current
+                and int(item.get("expires_at_ms", 0)) > int(current * 1000)
             ),
             None,
         )
@@ -81,8 +81,8 @@ class ReattestationChallengeStore:
             "request_id": str(request_id),
             "node_id": str(node_id),
             "nonce": secrets.token_urlsafe(32),
-            "issued_at": current,
-            "expires_at": current + ttl,
+            "issued_at_ms": int(current * 1000),
+            "expires_at_ms": int((current + ttl) * 1000),
             "status": "pending",
             "attempts": 0,
         }
@@ -108,7 +108,7 @@ class ReattestationChallengeStore:
             raise ValueError("re-attestation challenge is not pending")
         if record.get("node_id") != str(node_id):
             raise PermissionError("challenge does not belong to this node")
-        if float(record.get("expires_at", 0.0)) <= current:
+        if int(record.get("expires_at_ms", 0)) <= int(current * 1000):
             record["status"] = "expired"
             self._save()
             raise TimeoutError("re-attestation challenge expired")
