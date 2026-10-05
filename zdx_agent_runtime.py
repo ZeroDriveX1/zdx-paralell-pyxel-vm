@@ -32,9 +32,7 @@ class ZDXAgentRuntime:
             return None
         return layout.to_dict() if hasattr(layout, "to_dict") else dict(layout)
 
-    def _persist_state(self, vm, mem, *, spatial_layout=None, source_frame=None):
-        if mem is None:
-            return
+    def _state_payload(self, vm, *, spatial_layout=None, source_frame=None):
         payload = {
             "shared_state": dict(vm.shared),
             "register_state": {name: dict(values) for name, values in vm.registers.items()},
@@ -44,6 +42,14 @@ class ZDXAgentRuntime:
             payload["spatial_layout"] = layout_payload
         if source_frame is not None:
             payload["source_frame"] = os.path.abspath(source_frame)
+        return payload
+
+    def _persist_state(self, vm, mem, *, spatial_layout=None, source_frame=None):
+        if mem is None:
+            return
+        payload = self._state_payload(
+            vm, spatial_layout=spatial_layout, source_frame=source_frame
+        )
         update = getattr(mem, "update", None)
         if callable(update):
             update(payload)
@@ -82,14 +88,32 @@ class ZDXAgentRuntime:
             raise TypeError("spatial VM must expose a layout")
 
         mem = self._memory()
+        same_frame = False
         if mem is not None and getattr(mem, "is_spatial", False):
             memory_layout = getattr(mem, "layout", None)
             if memory_layout is not None:
                 left = self._layout_payload(layout)
                 right = self._layout_payload(memory_layout)
-                if os.path.abspath(getattr(mem, "frame_path", "") or "") == os.path.abspath(image_path):
-                    if left != right:
-                        raise ValueError("same-frame spatial memory must use the VM's exact layout")
+                same_frame = (
+                    os.path.abspath(getattr(mem, "frame_path", "") or "")
+                    == os.path.abspath(image_path)
+                )
+                if same_frame and left != right:
+                    raise ValueError("same-frame spatial memory must use the VM's exact layout")
+
+        resident_execute = getattr(vm, "execute_spatial_frame", None)
+        resident_transaction = getattr(mem, "spatial_transaction", None) if mem is not None else None
+        if same_frame and callable(resident_execute) and callable(resident_transaction):
+            def execute_and_persist(frame, values):
+                resident_execute(frame)
+                values.update(self._state_payload(
+                    vm,
+                    spatial_layout=layout,
+                    source_frame=image_path,
+                ))
+                return vm.registers
+
+            return resident_transaction(execute_and_persist)
 
         execute(image_path)
         self._persist_state(
