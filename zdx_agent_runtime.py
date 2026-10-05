@@ -121,6 +121,10 @@ class ZDXAgentRuntime:
         """Open a Pyxel-native mailbox bound by the session's Agent ABI."""
         return self.open_spatial_session(image_path).mailbox(role, slot_size=slot_size)
 
+    def memory_manager(self, image_path: str, *, policies=None):
+        """Open namespaced/quota-aware memory for a resident spatial agent."""
+        return self.open_spatial_session(image_path).memory_manager(policies=policies)
+
     def close(self, *, flush: bool = True):
         for session in list(self._spatial_sessions.values()):
             session.close(flush=flush)
