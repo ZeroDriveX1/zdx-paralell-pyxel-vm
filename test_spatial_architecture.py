@@ -10,6 +10,7 @@ from pyxel_registry import PyxelRegistry
 from zdx_agent_runtime import ZDXAgentRuntime
 from zdx_pixel_memory import ZDXAgentMemory
 from zdx_pixel_memory.spatial_store import SpatialPixelStore
+from zdx_storage import CorruptStateError
 from zdx_spatial_frame import (
     SpatialCompiler,
     SpatialFrame,
@@ -295,3 +296,104 @@ def test_spatial_memory_is_binary_typed_not_json_text():
         raw = frame.read_bytes(store.capacity_bytes)
         assert raw.startswith(b"ZDXSPM1\x00")
         assert b'{"answer"' not in raw
+
+
+def test_spatial_frame_rejects_noncanonical_image_modes_and_formats(tmp_path):
+    layout = SpatialLayout(width=8, height=8, execution_rows=1)
+
+    rgba = tmp_path / "rgba.png"
+    Image.new("RGBA", (8, 8), (0, 0, 0, 255)).save(rgba)
+    with pytest.raises(ValueError, match="canonical RGB"):
+        SpatialFrame.open(str(rgba), layout)
+
+    bmp = tmp_path / "frame.bmp"
+    Image.new("RGB", (8, 8), (0, 0, 0)).save(bmp)
+    with pytest.raises(ValueError, match="PNG container"):
+        SpatialFrame.open(str(bmp), layout)
+
+
+def test_spatial_layout_from_dict_rejects_noncanonical_metadata():
+    with pytest.raises(ValueError, match="must be an integer"):
+        SpatialLayout.from_dict({"width": True, "height": 8, "execution_rows": 1})
+
+    with pytest.raises(ValueError, match="raw_capacity_bytes"):
+        SpatialLayout.from_dict({
+            "width": 8,
+            "height": 8,
+            "execution_rows": 1,
+            "raw_capacity_bytes": 1,
+        })
+
+    with pytest.raises(ValueError, match="kind='data'"):
+        SpatialLayout.from_dict({
+            "width": 8,
+            "height": 8,
+            "execution_rows": 1,
+            "regions": [{
+                "name": "extra-exec",
+                "x": 0,
+                "y": 1,
+                "width": 8,
+                "height": 1,
+                "kind": "execution",
+            }],
+        })
+
+
+def test_resident_spatial_transaction_rolls_back_on_exception(tmp_path):
+    layout = SpatialLayout(
+        width=32,
+        height=16,
+        execution_rows=1,
+        regions=(SpatialRegion("memory", 0, 1, 32, 15),),
+    )
+    path = str(tmp_path / "transaction.png")
+    SpatialCompiler(layout).compile([["HALT"]], path)
+    store = SpatialPixelStore(path, layout=layout, region="memory")
+    store.write("stable", 1)
+    before = open(path, "rb").read()
+    generation = store.generation()
+
+    def fail(frame, values):
+        values["unstable"] = 2
+        frame.write_cell(0, 0, (10, 0, 9))
+        raise RuntimeError("abort")
+
+    with pytest.raises(RuntimeError, match="abort"):
+        store.transaction_frame(fail)
+
+    assert open(path, "rb").read() == before
+    assert store.generation() == generation
+    assert store.read("unstable") is None
+
+
+def test_same_frame_backup_recovery_never_rolls_back_executable_plane(tmp_path):
+    layout = SpatialLayout(
+        width=32,
+        height=16,
+        execution_rows=1,
+        regions=(SpatialRegion("memory", 0, 1, 32, 15),),
+    )
+    path = str(tmp_path / "rollback-guard.png")
+    SpatialCompiler(layout).compile([["SET_A 1", "HALT"]], path)
+    store = SpatialPixelStore(path, layout=layout, region="memory")
+    store.write("state", "ok")
+
+    # Move the executable plane forward. The atomic save leaves a backup with
+    # the previous executable row.
+    frame = SpatialFrame.open(path, layout)
+    frame.write_cell(0, 0, (10, 0, 2))
+    frame.save(path)
+
+    # Corrupt only memory without rotating the backup. Recovery must not
+    # restore the older executable row from that stale backup.
+    frame = SpatialFrame.open(path, layout)
+    frame.write_cell(0, 1, (255, 255, 255))
+    with open(path, "wb") as stream:
+        stream.write(frame.to_png_bytes())
+
+    with pytest.raises(CorruptStateError, match="execution plane differs"):
+        store.read("state")
+
+    assert not os.path.exists(path)
+    assert list(tmp_path.glob("rollback-guard.png.corrupt.*"))
