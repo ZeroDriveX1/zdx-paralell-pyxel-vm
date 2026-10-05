@@ -135,3 +135,16 @@ Current semantic roles are:
 Inbound/outbound mailboxes use a bounded binary ring format inside their declared regions. Each message is sequence-bound and integrity-checked; queue overflow is explicit rather than spilling into adjacent raster state. Mailbox regions must be distinct from the persistent-memory region.
 
 `SpatialAgentSession` owns the resident frame containing those regions. A clean flush/close forces dirty resident state durable even if the normal 10-execution checkpoint interval has not been reached.
+
+
+## Namespaced memory and dirty-region metadata
+
+The resident persistent-memory dictionary may contain `agent_memory_v1`, a strict versioned namespace table. Namespace quotas are measured using the exact deterministic typed-binary spatial-memory encoding rather than JSON estimates. FIFO namespaces evict oldest logical keys only when needed; reject namespaces fail before mutating resident state.
+
+Raster writes track conservative dirty rectangles. Adjacent/touching rectangles are coalesced and pathological fragmentation is bounded. This metadata is intended for future snapshot/COW/tiled optimization and audit visibility. It does **not** make the current PNG encoder incrementally patch IDAT data; durable checkpoints remain complete standards-valid PNG encodes.
+
+## Provenance and capability regions
+
+When Agent ABI v1 binds a `provenance` region, the resident session can maintain a bounded hash-chained event journal and automatically records VM executions and mailbox transfers. Because the journal is finite and rolls over, it proves integrity/linkage for its retained window but is not a complete historical WAL.
+
+When the ABI binds `capabilities`, a deterministic binary capability table may be installed. Action decisions are default-deny and exact-name based. A permitted action is hashed together with its canonical arguments and exact durable VM/frame state before it can leave the authorization boundary.
