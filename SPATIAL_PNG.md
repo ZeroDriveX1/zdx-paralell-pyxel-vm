@@ -135,3 +135,22 @@ Current semantic roles are:
 Inbound/outbound mailboxes use a bounded binary ring format inside their declared regions. Each message is sequence-bound and integrity-checked; queue overflow is explicit rather than spilling into adjacent raster state. Mailbox regions must be distinct from the persistent-memory region.
 
 `SpatialAgentSession` owns the resident frame containing those regions. A clean flush/close forces dirty resident state durable even if the normal 10-execution checkpoint interval has not been reached. `SpatialFrame.dirty_rectangles` records resident cell/byte mutation regions as bounded half-open rectangles; this is tracking metadata only and does not imply in-place PNG IDAT patching.
+
+## Namespaced memory quotas
+
+The persistent-memory ABI region may contain a versioned namespaced agent-memory
+root. Namespace entries use the existing deterministic binary spatial-memory
+encoding. Quotas are measured from that binary representation rather than JSON
+or approximate object size.
+
+Default logical namespaces are working, episodic, facts, tool_results, and
+system. Each namespace stores a persisted quota policy and globally monotonic
+write sequence. Reject-mode namespaces fail atomically when a quota would be
+exceeded. FIFO-mode namespaces evict the oldest writes in that namespace only;
+they never evict another namespace to make space.
+
+A mutation is rejected before resident state changes if the full encoded
+persistent-memory document would exceed the actual region capacity. Namespace
+policy metadata is immutable for an active session and must match after
+restart.
+
