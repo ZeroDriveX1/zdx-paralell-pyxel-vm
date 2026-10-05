@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import threading
@@ -66,7 +65,7 @@ class SpatialCheckpointManager:
     queue when persistence is slower than VM execution.
     """
 
-    def __init__(self, store, *, interval: int = 10, manifest_path: str | None = None):
+    def __init__(self, store, *, interval: int = 10, manifest_path: str | None = None, initial_artifact_sha256: str | None = None):
         if isinstance(interval, bool) or not isinstance(interval, int) or interval < 1:
             raise ValueError("checkpoint interval must be a positive integer")
         self.store = store
@@ -79,6 +78,7 @@ class SpatialCheckpointManager:
         self._last_committed_generation = 0
         self._last_committed_hash = ""
         self._error: Exception | None = None
+        self._current_artifact_sha256 = initial_artifact_sha256
         self._worker = threading.Thread(
             target=self._run,
             name="zdx-spatial-checkpoint",
@@ -102,8 +102,8 @@ class SpatialCheckpointManager:
         if actual != checkpoint_hash:
             raise ValueError("VM checkpoint hash does not match frozen snapshot state")
         request = SpatialCheckpointRequest(
-            frame=copy.deepcopy(frame),
-            values=copy.deepcopy(values),
+            frame=frame.clone(),
+            values=json.loads(json.dumps(values, sort_keys=True)),
             generation=generation,
             checkpoint_hash=checkpoint_hash,
             barrier=bool(barrier),
@@ -176,6 +176,7 @@ class SpatialCheckpointManager:
                     request.values,
                     vm_generation=request.generation,
                     vm_checkpoint_hash=request.checkpoint_hash,
+                    expected_artifact_sha256=self._current_artifact_sha256,
                 )
                 manifest = {
                     "generation": request.generation,
@@ -187,6 +188,7 @@ class SpatialCheckpointManager:
                 with self._condition:
                     self._last_committed_generation = request.generation
                     self._last_committed_hash = request.checkpoint_hash
+                    self._current_artifact_sha256 = artifact["artifact_sha256"]
                     self._condition.notify_all()
             except Exception as exc:
                 with self._condition:
