@@ -8,6 +8,18 @@
 - Shell/Python syntax checks for installer, launcher, controller, and signing
   tooling.
 
+## Spatial PNG v1 gate
+
+- Reject non-PNG and non-RGB spatial frame inputs rather than converting them.
+- Reject boolean/non-integer geometry, mismatched derived capacities, overlapping regions, and custom executable regions.
+- Verify threads == execution_rows and reject spatial tasks whose estimated raster working set exceeds the declared task memory lease.
+- Require spatial_version == 1 and canonicalize the same layout across manifests, protocol metadata, sync, and compute tasks.
+- Verify storage rows containing opcode-looking RGB values are never scheduled.
+- Verify a same-frame agent transaction decodes/executes/updates one resident frame and commits once.
+- Verify an exception during a resident transaction leaves the previous PNG generation unchanged.
+- Verify corrupt same-frame memory never restores a backup with a different executable plane.
+- Verify executable rows remain byte-equivalent across memory-only state updates.
+
 ## Clean Linux release gate
 
 Run `docs/CLEAN_LINUX_INTEGRATION_TEST.md` on two newly provisioned machines.
