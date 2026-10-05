@@ -159,6 +159,7 @@ def test_capability_gateway_is_default_deny_and_state_bound(tmp_path):
     assert allowed.allowed is True
     assert len(allowed.action_hash) == 64
     assert len(allowed.envelope.artifact_sha256) == 64
+    assert allowed.envelope.capability_manifest_sha256 == gateway.manifest_sha256
     assert len(allowed.decision_artifact_sha256) == 64
 
     approval = session.decide_action(
@@ -291,3 +292,38 @@ def test_namespaced_memory_rejects_malformed_persisted_roots(tmp_path, root):
     with pytest.raises(ValueError):
         AgentMemoryManager(session)
     runtime.close(flush=False)
+
+
+def test_capability_gateway_requires_abi_capability_region(tmp_path):
+    layout = SpatialLayout(
+        width=64,
+        height=24,
+        execution_rows=1,
+        regions=(SpatialRegion("memory", 0, 1, 64, 23),),
+    )
+    path = str(tmp_path / "no-capability-region.png")
+    SpatialCompiler(layout).compile([["HALT"]], path)
+    memory = ZDXAgentMemory(
+        agent_id="no-cap",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    registry = PyxelRegistry()
+    registry.register("vm", SpatialPyxelVM(layout=layout))
+    registry.register("memory", memory)
+    runtime = ZDXAgentRuntime(registry)
+    session = runtime.open_spatial_session(path)
+    gateway = AgentCapabilityGateway([
+        CapabilityGrant("filesystem", ("file.read",)),
+    ])
+
+    with pytest.raises(ValueError, match="capabilities region"):
+        session.install_capability_gateway(gateway)
+    runtime.close(flush=False)
+
+
+def test_capability_grant_rejects_string_as_action_collection():
+    with pytest.raises(TypeError, match="tuple/list"):
+        CapabilityGrant("filesystem", "file.read")
