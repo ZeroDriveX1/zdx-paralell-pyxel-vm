@@ -69,6 +69,10 @@ def test_native_spatial_mailbox_fifo_full_and_integrity():
     assert box.dequeue().payload == b"second"
     assert box.dequeue() is None
 
+    wrapped = box.enqueue(b"wrapped", sender="agent-a", recipient="agent-b")
+    assert wrapped.sequence == 3
+    assert box.dequeue().payload == b"wrapped"
+
     for index in range(box.slot_count):
         box.enqueue(str(index).encode(), sender="a", recipient="b")
     with pytest.raises(BufferError, match="full"):
@@ -236,3 +240,38 @@ def test_clean_close_flushes_generation_before_interval(tmp_path):
         spatial_region="memory",
     )
     assert reopened.snapshot()["vm_checkpoint"]["generation"] == 3
+
+
+def test_same_generation_mailbox_barrier_waits_for_exact_snapshot(tmp_path):
+    layout = _agent_layout()
+    path = str(tmp_path / "ticketed-mailbox.png")
+    SpatialCompiler(layout).compile([["SET_A 1", "HALT"]], path)
+    memory = ZDXAgentMemory(
+        agent_id="ticketed",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    registry = PyxelRegistry()
+    vm = SpatialPyxelVM(layout=layout)
+    registry.register("vm", vm)
+    registry.register("memory", memory)
+    runtime = ZDXAgentRuntime(registry, checkpoint_interval=1)
+
+    runtime.run_spatial(path)
+    session = runtime.open_spatial_session(path)
+    assert session.manager.wait_for(1, timeout=5.0)
+
+    session.send(
+        b"same-generation-state",
+        sender="agent-a",
+        recipient="agent-b",
+    )
+    assert session.generation == 1
+    runtime.checkpoint(path, barrier=True)
+
+    persisted_frame = SpatialFrame.open(path, layout)
+    persisted_box = SpatialMailbox(persisted_frame, "mailbox_out")
+    assert persisted_box.peek().payload == b"same-generation-state"
+    runtime.close()
