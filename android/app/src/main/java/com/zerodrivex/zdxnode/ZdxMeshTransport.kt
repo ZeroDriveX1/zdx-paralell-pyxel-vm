@@ -97,8 +97,8 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
             .put("request_id", challenge.getString("request_id"))
             .put("node_id", challenge.getString("node_id"))
             .put("nonce", challenge.getString("nonce"))
-            .put("issued_at", challenge.getDouble("issued_at"))
-            .put("expires_at", challenge.getDouble("expires_at"))
+            .put("issued_at_ms", challenge.getLong("issued_at_ms"))
+            .put("expires_at_ms", challenge.getLong("expires_at_ms"))
         require(signedPayload.getString("node_id") == nodeId) { "re-attestation challenge targets another node" }
         return request(
             "reattest_response",
