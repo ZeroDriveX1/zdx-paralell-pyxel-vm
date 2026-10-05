@@ -285,12 +285,17 @@ class AgentCapabilityGateway:
                 reason = "policy evaluator failed closed"
             else:
                 if isinstance(evaluated, bool):
-                    status = "allow" if evaluated else "deny"
+                    evaluated_status = "allow" if evaluated else "deny"
                 elif isinstance(evaluated, str) and evaluated in _ALLOWED_DECISIONS:
-                    status = evaluated
+                    evaluated_status = evaluated
                 else:
-                    status = "deny"
+                    evaluated_status = "deny"
                     reason = "policy evaluator returned invalid decision"
+                if grant.approval_required and evaluated_status == "allow":
+                    status = "approval_required"
+                    reason = "grant requires explicit approval"
+                else:
+                    status = evaluated_status
 
         record = session.record_event(
             f"capability.{status}",
