@@ -163,13 +163,23 @@ class ZDXServer:
         target = str(payload.get("target_node_id", "")).strip()
         if not target or target not in self._enrolled_peers or target in self._revoked_peers:
             raise PermissionError("rectification target must be an active enrolled peer")
+        reason = str(payload.get("reason_code", ""))
+        auth_age_seconds = None
+        if reason == "authentication_age":
+            due = {
+                item["node_id"]: item
+                for item in self.state.long_authenticated_peers(self.reattest_after_seconds)
+            }
+            if target not in due:
+                raise PermissionError("target is not due for authentication-age re-attestation")
+            auth_age_seconds = float(due[target]["auth_age_seconds"])
         record = self.rectification.request(
             reporter_node_id=message.peer_id,
             target_node_id=target,
-            reason_code=str(payload.get("reason_code", "")),
+            reason_code=reason,
             detail=str(payload.get("detail", "")),
             evidence_digest=str(payload.get("evidence_digest", "")),
-            auth_age_seconds=payload.get("auth_age_seconds"),
+            auth_age_seconds=auth_age_seconds,
         )
         self._send(conn, ZDXMessage(kind="rectification_ack", payload={
             "accepted": True,
