@@ -305,3 +305,15 @@ All code follows these standards:
 - **Security Model:** See `SECURITY_MODEL.md`
 - **Testing:** See `test_auth_pipeline.py` for patterns
 """
+
+## [Unreleased] - Asynchronous Spatial Checkpoints
+
+- Added deterministic per-execution VM checkpoint generations and hashes.
+- Added a coalescing asynchronous checkpoint worker with a default 10-execution cadence.
+- Added exact barrier checkpoints for durability-sensitive operations.
+- Added frozen snapshot verification: persisted state must reproduce the VM checkpoint hash.
+- Added PNG artifact SHA-256 lineage separately from VM-state hashes.
+- Added compare-and-swap protection against external frame mutation during async checkpointing.
+- Added restart recovery that verifies and restores the last durable VM generation before continuing.
+- Changed same-frame agent execution so normal runs remain resident and do not rewrite the PNG on every execution.
+
