@@ -212,7 +212,8 @@ def test_spatial_store_and_agent_memory_use_single_png_without_sidecar():
         assert mem.recall_list("history") == ["first", "second"]
         assert mem.capacity_bytes == 96 * 96 * 3
         agent_dir = os.path.join(base_dir, "spatial_agent")
-        assert sorted(os.listdir(agent_dir)) == ["memory.spatial.png"]
+        assert os.path.isfile(os.path.join(agent_dir, "memory.spatial.png"))
+        assert not os.path.exists(os.path.join(agent_dir, "keys.json"))
 
 
 def test_agent_runtime_spatial_execution_persists_geometry_and_state():
@@ -252,3 +253,45 @@ def test_capacity_scales_with_area_not_only_program_length():
     assert spatial.total_cells == narrow.total_cells * 256
     assert spatial.raw_capacity_bytes == 196608
     assert spatial.storage_capacity_bytes == 255 * 256 * 3
+
+
+def test_agent_memory_can_share_executable_spatial_frame():
+    layout = SpatialLayout(
+        width=64,
+        height=32,
+        execution_rows=1,
+        regions=(SpatialRegion("memory", 0, 1, 64, 31),),
+    )
+    program = [["SET_A 12", "SET_B 5", "ADD", "COPY_OUT", "STORE_MEM 0", "HALT"]]
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "agent-frame.png")
+        SpatialCompiler(layout).compile(program, path)
+        memory = ZDXAgentMemory(
+            agent_id="same_frame",
+            spatial=True,
+            spatial_path=path,
+            spatial_layout=layout,
+            spatial_region="memory",
+        )
+        registry = PyxelRegistry()
+        registry.register("vm", SpatialPyxelVM(layout=layout))
+        registry.register("memory", memory)
+        result = ZDXAgentRuntime(registry).run_spatial(path)
+        assert result["T0"]["OUT"] == 17
+        assert memory.recall("shared_state")["M0"] == 17
+        assert memory.recall("spatial_layout")["execution_rows"] == 1
+        # Persisting agent state must not rewrite the executable row.
+        vm2 = SpatialPyxelVM(layout=layout)
+        vm2.execute_spatial(path)
+        assert vm2.shared["M0"] == 17
+
+
+def test_spatial_memory_is_binary_typed_not_json_text():
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "binary-memory.png")
+        store = SpatialPixelStore(path, width=64, height=64)
+        store.write("answer", {"n": 42, "ok": True, "items": [1, 2, 3]})
+        frame = SpatialFrame.open(path, store.layout)
+        raw = frame.read_bytes(store.capacity_bytes)
+        assert raw.startswith(b"ZDXSPM1\\x00")
+        assert b'{"answer"' not in raw
