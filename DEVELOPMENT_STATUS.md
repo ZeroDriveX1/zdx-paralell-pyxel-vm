@@ -171,3 +171,21 @@ existing leases. Claims now subtract running-task RAM and thread reservations
 and are capped by registered static/safe worker limits, preventing lease-level
 overcommit.
 
+## Pyxel-native agent foundation pass 19.0
+
+The first core-agent architecture pass is implemented on the feature branch:
+
+- `SpatialAgentSession` owns resident frame/VM/checkpoint lifecycle.
+- Agent ABI v1 binds semantic roles to named non-executable spatial regions.
+- ABI metadata is layout-hash-bound and persisted with same-frame agent state.
+- Native bounded binary mailboxes provide FIFO in-raster IPC with sequence and
+  SHA-256 integrity checks.
+- Same-generation durability uses checkpoint request IDs so an exact barrier
+  cannot be satisfied by an older snapshot with the same VM generation/hash.
+- `SpatialFrame.dirty_rectangles` is now a real tracked property for resident
+  mutations rather than a planned/undefined optimization hook.
+
+This pass deliberately does not yet add capability/tool execution authority,
+memory namespace quotas/compaction, event replay journals, or incremental PNG
+encoding. Those build on this ABI/session foundation in the next passes.
+
