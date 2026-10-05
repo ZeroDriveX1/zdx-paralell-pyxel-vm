@@ -1,9 +1,9 @@
 import argparse
-import hashlib
 import json
 import math
 import os
 from zdx_storage import StateStore
+from zdx_checkpoint import compute_vm_checkpoint_hash
 import random
 import sys
 
@@ -146,13 +146,12 @@ class ParallelPyxelVM:
         }
 
     def _compute_checkpoint_hash(self) -> str:
-        payload = json.dumps(
-            self._checkpoint_state(),
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-        return hashlib.sha256(b"zdx-vm-checkpoint-v1\x00" + payload).hexdigest()
+        return compute_vm_checkpoint_hash(
+            generation=self.execution_generation,
+            clock=self.clock,
+            registers=self.registers,
+            shared=self.shared,
+        )
 
     def _record_execution_generation(self) -> str:
         self.execution_generation += 1
