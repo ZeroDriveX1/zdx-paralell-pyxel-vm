@@ -91,6 +91,23 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
     fun heartbeat(payload: JSONObject = JSONObject()): JSONObject =
         request("heartbeat", payload)
 
+    fun respondToReattestation(challenge: JSONObject): JSONObject {
+        val signedPayload = JSONObject()
+            .put("domain", challenge.getString("domain"))
+            .put("request_id", challenge.getString("request_id"))
+            .put("node_id", challenge.getString("node_id"))
+            .put("nonce", challenge.getString("nonce"))
+            .put("issued_at", challenge.getDouble("issued_at"))
+            .put("expires_at", challenge.getDouble("expires_at"))
+        require(signedPayload.getString("node_id") == nodeId) { "re-attestation challenge targets another node" }
+        return request(
+            "reattest_response",
+            JSONObject()
+                .put("challenge_id", challenge.getString("challenge_id"))
+                .put("challenge_signature", sign(canonical(signedPayload)))
+        )
+    }
+
     fun requestRectification(
         targetNodeId: String,
         reasonCode: String,
