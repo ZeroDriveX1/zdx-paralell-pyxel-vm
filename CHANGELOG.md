@@ -317,3 +317,18 @@ All code follows these standards:
 - Added restart recovery that verifies and restores the last durable VM generation before continuing.
 - Changed same-frame agent execution so normal runs remain resident and do not rewrite the PNG on every execution.
 
+
+
+## [Unreleased] - Android Support Mode, Lightweight Re-attestation, and Resource Validation
+
+- Fixed Android idle-only semantics to reflect active device use rather than Doze state.
+- Added editable Android compute-RAM and preserved-free-RAM policy controls.
+- Added persistent Android work console/status telemetry for incoming, queued, receiving, running, outgoing, completed, released, failed, policy, support, and re-auth events.
+- Decoupled mesh participation from compute admission; constrained Android nodes remain authenticated support participants.
+- Added bounded advisory rectification/re-attestation queue with duplicate suppression and server-owned authentication-age evidence.
+- Added short-lived, one-time Ed25519 re-attestation challenges for stale-auth reviews.
+- Added Android Keystore automatic response to lightweight re-attestation challenges.
+- Preserved review-scope separation: successful key-possession proof does not clear suspicious/replay/rate-limit reviews.
+- Fixed distributed coordinator RAM/thread overcommit by subtracting active lease reservations and honoring registered static/safe limits.
+- Added integrated release tests for auth/re-auth, distributed compute, RAM budgets, lease restart/recovery, and resource-policy/coordinator agreement.
+- Added comprehensive release-validation CI across Python 3.11/3.12, repeated network/resource stress, persistence/power-loss recovery, and Android assemble+lint.
