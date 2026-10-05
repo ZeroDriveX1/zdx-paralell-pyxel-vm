@@ -12,7 +12,8 @@ data class WorkEvent(
     val type: String,
     val message: String,
     val taskId: String? = null,
-    val direction: String? = null
+    val direction: String? = null,
+    val count: Int = 1
 )
 
 class WorkEventStore(context: Context) {
@@ -63,7 +64,8 @@ class WorkEventStore(context: Context) {
                 type = it.optString("type"),
                 message = it.optString("message"),
                 taskId = it.optString("task_id").takeIf(String::isNotBlank),
-                direction = it.optString("direction").takeIf(String::isNotBlank)
+                direction = it.optString("direction").takeIf(String::isNotBlank),
+                count = it.optInt("count", 1).coerceAtLeast(1)
             )
         }
     }
@@ -76,8 +78,7 @@ class WorkEventStore(context: Context) {
             val time = formatter.format(Date(event.timestamp))
             val task = event.taskId?.let { " [$it]" }.orEmpty()
             val direction = event.direction?.let { " <$it>" }.orEmpty()
-            val count = loadMutable().lastOrNull()?.optInt("count", 1) ?: 1
-            val repeat = if (count > 1) " x$count" else ""
+            val repeat = if (event.count > 1) " x${event.count}" else ""
             "$time ${event.type}$direction$task ${event.message}$repeat"
         }
     }
