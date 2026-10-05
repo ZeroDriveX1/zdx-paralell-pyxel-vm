@@ -122,15 +122,17 @@ def run_benchmarks(iterations: int = 50) -> dict:
                 spatial_region="memory",
             ),
         )
-        runtime = ZDXAgentRuntime(registry)
+        runtime = ZDXAgentRuntime(registry, checkpoint_interval=10)
 
-        def same_frame_agent():
+        def same_frame_agent_checkpoint():
             result = runtime.run_spatial(str(same_frame_path))
             if result["T0"]["OUT"] != 17:
                 raise AssertionError("same-frame agent produced wrong result")
+            runtime.checkpoint(str(same_frame_path), barrier=True)
 
-        same_frame_agent()
-        same_frame_samples = timed(iterations, same_frame_agent)
+        same_frame_agent_checkpoint()
+        same_frame_samples = timed(iterations, same_frame_agent_checkpoint)
+        runtime.close()
 
         compatibility = ZDXAgentMemory(
             agent_id="compat-agent",
@@ -166,7 +168,7 @@ def run_benchmarks(iterations: int = 50) -> dict:
 
         resident = summarize("resident_spatial_vm", resident_samples)
         file_based = summarize("file_decoded_spatial_vm", file_samples)
-        same_frame = summarize("same_frame_agent_transaction", same_frame_samples)
+        same_frame = summarize("same_frame_agent_barrier_checkpoint", same_frame_samples)
         compatibility_result = summarize(
             "compatibility_agent_memory_update", compatibility_samples
         )
