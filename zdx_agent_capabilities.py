@@ -36,6 +36,8 @@ class CapabilityGrant:
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not _SAFE.fullmatch(self.name):
             raise ValueError("capability name is invalid")
+        if not isinstance(self.actions, (tuple, list)):
+            raise TypeError("capability actions must be a tuple/list of exact action names")
         raw_actions = tuple(self.actions)
         if not raw_actions:
             raise ValueError("capability grant requires at least one exact action")
@@ -54,6 +56,7 @@ class ActionEnvelope:
     vm_generation: int
     vm_checkpoint_hash: str
     artifact_sha256: str
+    capability_manifest_sha256: str
 
     def to_dict(self) -> dict:
         return {
@@ -64,6 +67,7 @@ class ActionEnvelope:
             "vm_generation": self.vm_generation,
             "vm_checkpoint_hash": self.vm_checkpoint_hash,
             "artifact_sha256": self.artifact_sha256,
+            "capability_manifest_sha256": self.capability_manifest_sha256,
         }
 
 
@@ -154,7 +158,9 @@ class AgentCapabilityGateway:
     def install(self, session) -> str | None:
         region = session.abi.region_for(ROLE_CAPABILITIES)
         if region is None:
-            return None
+            raise ValueError(
+                "capability gateway requires an Agent ABI capabilities region"
+            )
         payload = _encode_grants(self.grants.values())
         digest = hashlib.sha256(payload).digest()
         document = _CAP_HEADER.pack(
@@ -199,7 +205,7 @@ class AgentCapabilityGateway:
     def verify_installed(self, session) -> bool:
         installed = self._read_installed(session)
         if installed is None:
-            return True
+            return False
         return tuple(sorted(installed, key=lambda item: item.name)) == tuple(
             sorted(self.grants.values(), key=lambda item: item.name)
         )
@@ -272,6 +278,7 @@ class AgentCapabilityGateway:
             vm_generation=int(prestate["generation"]),
             vm_checkpoint_hash=str(prestate["checkpoint_hash"]),
             artifact_sha256=str(artifact_sha),
+            capability_manifest_sha256=self.manifest_sha256,
         )
         action_hash = self._action_hash(envelope)
         status = "approval_required" if grant.approval_required else "allow"
