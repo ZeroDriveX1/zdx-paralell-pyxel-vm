@@ -245,6 +245,8 @@ class NodeService : Service() {
         val completed = queue.optInt("completed", 0)
         val failed = queue.optInt("failed", 0)
         val master = payload.optString("master").takeIf { it.isNotBlank() }
+        val rectification = payload.optJSONObject("rectification") ?: JSONObject()
+        val pendingRectification = rectification.optInt("pending", 0)
         getSharedPreferences("zdx_status", MODE_PRIVATE).edit()
             .putString("node_mode", mode.name)
             .putInt("queue_queued", queued)
@@ -252,12 +254,13 @@ class NodeService : Service() {
             .putInt("queue_completed", completed)
             .putInt("queue_failed", failed)
             .putString("cluster_master", master ?: "")
+            .putInt("rectification_pending", pendingRectification)
             .putString("policy_block_reason", policyBlock ?: "")
             .apply()
         val routing = master?.let { " · master=$it" }.orEmpty()
         recordWork(
             "SUPPORT",
-            "mode=${mode.name.lowercase()} queue=$queued queued/$running running/$completed completed/$failed failed$routing",
+            "mode=${mode.name.lowercase()} queue=$queued queued/$running running/$completed completed/$failed failed · rectification=$pendingRectification pending$routing",
             direction = "incoming"
         )
     }
