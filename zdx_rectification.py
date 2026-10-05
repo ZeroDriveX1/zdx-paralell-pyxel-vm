@@ -48,6 +48,14 @@ class RectificationQueue:
     def pending_count(self) -> int:
         return len(self.pending())
 
+    def pending_for_target(self, target_node_id: str, reason_code: str | None = None) -> list[dict]:
+        target = str(target_node_id)
+        return [
+            item for item in self.pending()
+            if item.get("target_node_id") == target
+            and (reason_code is None or item.get("reason_code") == reason_code)
+        ]
+
     def has_pending(self, target_node_id: str, reason_code: str | None = None) -> bool:
         target = str(target_node_id)
         return any(
