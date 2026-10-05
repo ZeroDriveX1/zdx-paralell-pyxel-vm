@@ -125,6 +125,23 @@ class ZDXAgentRuntime:
         """Open namespaced/quota-aware memory for a resident spatial agent."""
         return self.open_spatial_session(image_path).memory_manager(policies=policies)
 
+    def tool_gateway(
+        self,
+        image_path: str,
+        *,
+        registry,
+        policy,
+        external_authorizer=None,
+    ):
+        """Create a fail-closed tool gateway bound to one resident agent session."""
+        from zdx_agent_tool_gateway import AgentToolGateway
+        return AgentToolGateway(
+            self.open_spatial_session(image_path),
+            registry=registry,
+            policy=policy,
+            external_authorizer=external_authorizer,
+        )
+
     def close(self, *, flush: bool = True):
         for session in list(self._spatial_sessions.values()):
             session.close(flush=flush)
