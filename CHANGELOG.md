@@ -344,3 +344,16 @@ All code follows these standards:
 - Added `SpatialFrame.dirty_rectangles` with bounded, clone-safe, conservatively coalesced mutation rectangles.
 - Added checkpoint request tickets so exact barriers wait for the requested frozen snapshot even when multiple states share one VM generation.
 - Added tests for ABI rebinding rejection, mailbox FIFO/full/wrap/tamper behavior, restart persistence, clean-close durability, and same-generation exact barriers.
+
+## [Unreleased] - Namespaced / Quota-aware Agent Memory
+
+- Added `SpatialAgentMemoryManager` over the session-owned persistent spatial document.
+- Added working, episodic, facts, tool_results, and system logical namespaces.
+- Added deterministic max-byte/max-entry quotas with reject or FIFO behavior.
+- Added globally monotonic write sequence metadata for deterministic FIFO eviction.
+- Added full persistent-region encoded-capacity checks before accepting mutations.
+- Added exact encoded-size estimation to `SpatialPixelStore`.
+- Bound persisted quota policies against silent in-session modification.
+- Added corruption checks for schema/version, duplicate sequences, and regressed next-sequence metadata.
+- Added runtime/session accessors and regression coverage for persistence, atomic quota failure, FIFO eviction, capacity overflow, and policy integrity.
+
