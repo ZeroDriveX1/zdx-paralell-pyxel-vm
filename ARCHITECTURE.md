@@ -97,3 +97,33 @@ Native spatial mailboxes are bounded binary FIFO rings stored directly in ABI-bo
 Checkpoint barriers now use an internal monotonic snapshot ticket in addition to VM generation. This matters because mailbox/state mutations can occur without executing another VM instruction; an exact barrier waits for the specific frozen snapshot rather than merely observing that the same VM generation was previously committed.
 
 `SpatialFrame.dirty_rectangles` now tracks bounded half-open resident mutations and conservatively coalesces overlapping/adjacent regions. The next layers build on this foundation: namespaced/quota-aware memory, capability/tool authorization, replay/event journal, and dirty-region-aware checkpoint/tiled-copy optimization.
+
+## Namespaced persistent agent memory
+
+`SpatialAgentMemoryManager` layers deterministic logical namespaces over the
+same persistent-memory document already owned by `SpatialAgentSession`.
+Namespaces are isolated under one versioned root and have persisted policies
+for maximum encoded bytes, maximum entry count, and either reject or
+deterministic FIFO eviction.
+
+Every mutation is evaluated twice before it becomes resident state:
+
+1. the selected namespace must satisfy its own entry/encoded-byte quota; and
+2. the complete encoded spatial-memory document must still fit the actual
+   persistent PNG region.
+
+The manager never writes the backing PNG directly. It mutates only the
+session-owned resident values under the session lock, marks the session dirty,
+and relies on the normal checkpoint/barrier lifecycle for durability. This
+avoids a second file writer that could invalidate checkpoint CAS lineage.
+
+Initial namespaces are working, episodic, facts, tool_results, and system.
+FIFO ordering is based on a globally monotonic deterministic write sequence,
+not wall-clock time. Persisted policy metadata and sequence state are validated
+and fail closed if modified or corrupted.
+
+The separate Agent ABI `working_memory` region is not used by this pass.
+Mapping volatile/working namespaces directly into ABI regions will require a
+resident-region binary codec and will preserve the same single-writer session
+model.
+
