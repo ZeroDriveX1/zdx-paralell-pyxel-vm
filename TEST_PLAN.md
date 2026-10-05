@@ -85,3 +85,18 @@ The gate intentionally does not substitute for physical Android-device testing, 
 - Verify clean session close persists dirty generations before the normal checkpoint interval.
 - Verify `SpatialFrame.dirty_rectangles` is always defined, bounded, clone-safe, clearable, and coalesces adjacent/overlapping writes.
 - Verify an exact barrier at the same VM generation waits for the newer mailbox/frame snapshot rather than returning on an older generation-only checkpoint.
+
+## Namespaced memory gate
+
+- Verify namespace isolation and persistence across barrier checkpoint/restart.
+- Verify reject-mode entry/byte quota failures are atomic.
+- Verify FIFO eviction is deterministic by global write sequence.
+- Verify a value that fits its declared namespace quota but cannot fit the
+  actual persistent region is rejected before mutation.
+- Verify memory changes remain resident until checkpoint/clean close.
+- Verify persisted namespace policy changes fail closed unless an explicit
+  migration mechanism is added.
+- Verify malformed schema versions, duplicate/reused sequences, and regressed
+  next-sequence metadata fail closed.
+- Verify usage reporting is derived from deterministic binary encoded size.
+
