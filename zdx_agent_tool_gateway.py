@@ -391,8 +391,8 @@ class AgentToolGateway:
                 proposal.action_hash, proposal.policy_hash,
             )
         decision = response.get("decision")
-        reason = str(response.get("reason", "external authorizer decision"))
-        if decision not in _DECISIONS:
+        reason = str(response.get("reason", "external authorizer decision"))[:512]
+        if not isinstance(decision, str) or decision not in _DECISIONS:
             return AgentActionDecision(
                 "deny", "external authorizer returned an unknown decision",
                 proposal.action_hash, proposal.policy_hash,
@@ -411,22 +411,52 @@ class AgentToolGateway:
             decision, reason, proposal.action_hash, proposal.policy_hash
         )
 
+    def _validate_proposal(self, proposal: AgentActionProposal) -> None:
+        if not isinstance(proposal, AgentActionProposal):
+            raise ToolAuthorizationError("authorization requires an AgentActionProposal")
+        if proposal.policy_hash != self.policy.policy_hash:
+            raise ToolAuthorizationError("proposal policy hash does not match active policy")
+        if proposal.generation != self.session.generation:
+            raise ToolAuthorizationError("proposal VM generation is stale")
+        if proposal.checkpoint_hash != self.session.checkpoint_hash:
+            raise ToolAuthorizationError("proposal VM checkpoint hash is stale")
+        canonical_args = _canonical_arguments(proposal.arguments)
+        payload = self._proposal_payload(
+            tool=proposal.tool,
+            operation=proposal.operation,
+            resource=proposal.resource,
+            arguments=canonical_args,
+            idempotency_key=proposal.idempotency_key,
+            generation=proposal.generation,
+            checkpoint_hash=proposal.checkpoint_hash,
+            policy_hash=proposal.policy_hash,
+        )
+        encoded = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+        expected_hash = hashlib.sha256(
+            b"zdx-agent-action-v1\x00" + encoded
+        ).hexdigest()
+        if expected_hash != proposal.action_hash:
+            raise ToolAuthorizationError("proposal action hash is invalid")
+
     def authorize(
         self,
         proposal: AgentActionProposal,
         *,
         approval=None,
     ) -> AgentActionDecision:
+        self._validate_proposal(proposal)
         local = self._local_decision(proposal)
         if not local.allowed:
             return local
         if self.external_authorizer is None:
             return local
-        external_payload = {
-            "proposal": proposal.to_dict(),
-            "approval": copy.deepcopy(approval),
-        }
         try:
+            external_payload = {
+                "proposal": proposal.to_dict(),
+                "approval": copy.deepcopy(approval),
+            }
             response = self.external_authorizer(external_payload)
         except Exception as exc:
             return AgentActionDecision(
@@ -540,14 +570,16 @@ class AgentToolGateway:
         result_record = {
             "action_hash": proposal.action_hash,
             "proposal": proposal.to_dict(),
+            "decision": {
+                "decision": decision.decision,
+                "reason": decision.reason,
+            },
             "result": copy.deepcopy(result),
         }
         try:
             self.memory.set("tool_results", result_key, result_record)
-            completed = copy.deepcopy(intent)
-            completed["status"] = "executed"
-            completed["result_key"] = result_key
-            self.memory.set("system", intent_key, completed)
+            if not self.memory.delete("system", intent_key):
+                raise RuntimeError("pending tool intent disappeared before completion")
             if rule.require_barrier:
                 self.session.checkpoint(barrier=True)
         except Exception as exc:
