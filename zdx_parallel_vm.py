@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -127,9 +128,43 @@ class ParallelPyxelVM:
         self.mem_map = {}
         self.next_frame = None
         self.frame_registry = {0: "whisperframe_B.png"}
+        self.execution_generation = 0
+        self.last_checkpoint_hash = self._compute_checkpoint_hash()
 
         if persist_shared:
             self._load_shared()
+
+    def _checkpoint_state(self) -> dict:
+        return {
+            "generation": self.execution_generation,
+            "clock": self.clock,
+            "registers": {
+                name: {key: int(value) for key, value in sorted(regs.items())}
+                for name, regs in sorted(self.registers.items())
+            },
+            "shared": {name: int(value) for name, value in sorted(self.shared.items())},
+        }
+
+    def _compute_checkpoint_hash(self) -> str:
+        payload = json.dumps(
+            self._checkpoint_state(),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return hashlib.sha256(b"zdx-vm-checkpoint-v1\x00" + payload).hexdigest()
+
+    def _record_execution_generation(self) -> str:
+        self.execution_generation += 1
+        self.last_checkpoint_hash = self._compute_checkpoint_hash()
+        return self.last_checkpoint_hash
+
+    def checkpoint_marker(self) -> dict:
+        """Return the deterministic VM state marker for the latest execution."""
+        return {
+            "generation": self.execution_generation,
+            "checkpoint_hash": self.last_checkpoint_hash,
+        }
 
     # ------------------------------------------------------------------
     # Shared memory persistence
@@ -412,6 +447,7 @@ class ParallelPyxelVM:
         if self.persist_shared:
             self._save_shared()
 
+        self._record_execution_generation()
         return self.registers
 
     # ------------------------------------------------------------------
