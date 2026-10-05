@@ -1,21 +1,18 @@
 """Registry-driven ZDX agent module for standard and spatial Pyxel execution.
 
-The agent module remains separate from ZDX AgentCore. It coordinates registered
-VM, memory, scheduler, and inference-facing components without coupling the VM
-to a specific agent implementation.
-
-For spatial execution, the PNG raster remains the executable/state container.
-Agent memory may live in a separate spatial PNG or in a named non-executable
-region of the same executable frame.
+The agent module remains separate from ZDX AgentCore. Same-frame spatial
+execution is owned by SpatialAgentSession so frame, VM generation, ABI,
+mailboxes, recovery, and checkpoint lifecycle have one explicit owner.
 """
 
 from __future__ import annotations
 
+import copy
 import os
 
-from zdx_checkpoint import SpatialCheckpointManager, checkpoint_hash_from_memory
-
 from pyxel_registry import PyxelRegistry
+from zdx_agent_abi import SpatialAgentABI
+from zdx_spatial_agent_session import SpatialAgentSession
 
 
 class ZDXAgentRuntime:
@@ -24,7 +21,8 @@ class ZDXAgentRuntime:
         if isinstance(checkpoint_interval, bool) or not isinstance(checkpoint_interval, int) or checkpoint_interval < 1:
             raise ValueError("checkpoint_interval must be a positive integer")
         self.checkpoint_interval = checkpoint_interval
-        self._spatial_sessions = {}
+        self._spatial_sessions: dict[str, SpatialAgentSession] = {}
+        self._spatial_vm_baseline: dict | None = None
 
     def _memory(self):
         try:
@@ -66,25 +64,66 @@ class ZDXAgentRuntime:
             for key, value in payload.items():
                 mem.remember(key, value)
 
+    def _baseline_for(self, vm) -> dict:
+        if self._spatial_vm_baseline is None:
+            self._spatial_vm_baseline = SpatialAgentSession.capture_vm_state(vm)
+        return copy.deepcopy(self._spatial_vm_baseline)
+
+    def open_spatial_session(
+        self,
+        image_path: str,
+        *,
+        abi: SpatialAgentABI | None = None,
+    ) -> SpatialAgentSession:
+        """Return/create the resident same-frame session for image_path."""
+        key = os.path.abspath(image_path)
+        existing = self._spatial_sessions.get(key)
+        if existing is not None:
+            if abi is not None and existing.abi.to_dict() != abi.to_dict():
+                raise ValueError("resident session already uses a different agent ABI")
+            return existing
+
+        vm = self.registry.get("vm")
+        if not callable(getattr(vm, "execute_spatial_frame", None)):
+            raise TypeError("registered VM does not support resident spatial execution")
+        layout = getattr(vm, "layout", None)
+        if layout is None:
+            raise TypeError("spatial VM must expose a layout")
+
+        mem = self._memory()
+        if mem is None or not getattr(mem, "is_spatial", False):
+            raise RuntimeError("resident spatial session requires spatial memory")
+        memory_layout = getattr(mem, "layout", None)
+        if memory_layout != layout:
+            raise ValueError("same-frame spatial memory must use the VM's exact layout")
+        if os.path.abspath(getattr(mem, "frame_path", "") or "") != key:
+            raise ValueError("resident spatial session requires memory bound to the executable frame")
+
+        session = SpatialAgentSession.open(
+            image_path=key,
+            vm=vm,
+            memory=mem,
+            checkpoint_interval=self.checkpoint_interval,
+            abi=abi,
+            initial_vm_state=self._baseline_for(vm),
+        )
+        self._spatial_sessions[key] = session
+        return session
+
     def checkpoint(self, image_path: str, *, barrier: bool = True) -> dict | None:
         """Persist the latest resident generation for a spatial frame."""
         session = self._spatial_sessions.get(os.path.abspath(image_path))
         if session is None:
             return None
-        vm = self.registry.get("vm")
-        marker = vm.checkpoint_marker()
-        session["manager"].submit(
-            session["frame"],
-            session["values"],
-            generation=marker["generation"],
-            checkpoint_hash=marker["checkpoint_hash"],
-            barrier=barrier,
-        )
-        return marker
+        return session.checkpoint(barrier=barrier)
+
+    def mailbox(self, image_path: str, role: str, *, slot_size: int = 256):
+        """Open a Pyxel-native mailbox bound by the session's Agent ABI."""
+        return self.open_spatial_session(image_path).mailbox(role, slot_size=slot_size)
 
     def close(self, *, flush: bool = True):
         for session in list(self._spatial_sessions.values()):
-            session["manager"].close(flush=flush)
+            session.close(flush=flush)
         self._spatial_sessions.clear()
 
     def run_mission(self, mission: str):
@@ -102,13 +141,7 @@ class ZDXAgentRuntime:
         return vm.registers
 
     def run_spatial(self, image_path: str) -> dict:
-        """Execute a spatial PNG and persist state through the spatial contract.
-
-        The registered VM must expose execute_spatial() and layout. When the
-        registered memory backend is bound to the same PNG, its named region
-        must be outside the executable rows; SpatialLayout validation enforces
-        that boundary.
-        """
+        """Execute a spatial PNG through resident session when memory is same-frame."""
         vm = self.registry.get("vm")
         execute = getattr(vm, "execute_spatial", None)
         if not callable(execute):
@@ -122,60 +155,15 @@ class ZDXAgentRuntime:
         if mem is not None and getattr(mem, "is_spatial", False):
             memory_layout = getattr(mem, "layout", None)
             if memory_layout is not None:
-                left = self._layout_payload(layout)
-                right = self._layout_payload(memory_layout)
                 same_frame = (
                     os.path.abspath(getattr(mem, "frame_path", "") or "")
                     == os.path.abspath(image_path)
                 )
-                if same_frame and left != right:
+                if same_frame and memory_layout != layout:
                     raise ValueError("same-frame spatial memory must use the VM's exact layout")
 
-        resident_execute = getattr(vm, "execute_spatial_frame", None)
-        if same_frame and callable(resident_execute):
-            session_key = os.path.abspath(image_path)
-            session = self._spatial_sessions.get(session_key)
-            if session is None:
-                store = getattr(mem, "_store", None)
-                loader = getattr(store, "load_resident_snapshot", None)
-                if not callable(loader):
-                    raise RuntimeError("same-frame spatial memory requires resident snapshot support")
-                frame, values, _store_generation, artifact_sha = loader()
-                persisted = values.get("vm_checkpoint")
-                if persisted is not None:
-                    vm.restore_checkpoint(
-                        generation=persisted["generation"],
-                        clock=persisted.get("clock", 0),
-                        registers=values["register_state"],
-                        shared=values["shared_state"],
-                        checkpoint_hash=persisted["checkpoint_hash"],
-                    )
-                    if checkpoint_hash_from_memory(values) != persisted["checkpoint_hash"]:
-                        raise ValueError("resident checkpoint state failed hash verification")
-                manager = SpatialCheckpointManager(
-                    store,
-                    interval=self.checkpoint_interval,
-                    initial_artifact_sha256=artifact_sha,
-                )
-                session = {"frame": frame, "values": values, "manager": manager}
-                self._spatial_sessions[session_key] = session
-
-            resident_execute(session["frame"])
-            session["values"].update(self._state_payload(
-                vm,
-                spatial_layout=layout,
-                source_frame=image_path,
-            ))
-            marker = vm.checkpoint_marker()
-            manager = session["manager"]
-            if manager.due(marker["generation"]):
-                manager.submit(
-                    session["frame"],
-                    session["values"],
-                    generation=marker["generation"],
-                    checkpoint_hash=marker["checkpoint_hash"],
-                )
-            return vm.registers
+        if same_frame and callable(getattr(vm, "execute_spatial_frame", None)):
+            return self.open_spatial_session(image_path).execute()
 
         execute(image_path)
         self._persist_state(
