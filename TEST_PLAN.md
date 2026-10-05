@@ -100,3 +100,22 @@ The gate intentionally does not substitute for physical Android-device testing, 
   next-sequence metadata fail closed.
 - Verify usage reporting is derived from deterministic binary encoded size.
 
+## Agent tool-gateway gate
+
+- Verify pending intent is durable before a barrier-required handler runs.
+- Verify successful result and executed intent survive durability barriers.
+- Verify same idempotency key returns the durable result without another tool
+  execution, while a different idempotency key permits an intentional repeat.
+- Verify ungranted tools, operations, resources, and unregistered handlers fail
+  before handler execution.
+- Verify external authorization must echo the exact action/policy hashes.
+- Verify deny, approval-required, malformed, mismatched, and failed external
+  authorizers all fail closed.
+- Verify handler exceptions leave durable ambiguous intent and same-action retry
+  does not execute again.
+- Verify persisted result/intent proposal mismatch fails closed.
+- Verify gateway safety namespaces reject eviction policies.
+- Verify policy mismatch after restart fails closed.
+- Verify canonical action hashes are stable across mapping key order and reject
+  floating-point arguments.
+
