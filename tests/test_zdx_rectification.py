@@ -204,7 +204,7 @@ def test_successful_reattest_clears_only_auth_age_review(tmp_path):
     challenge = server._reattest_challenge_for_peer("peer-a")
     signature = signer.sign_message({
         key: challenge[key]
-        for key in ("domain", "request_id", "node_id", "nonce", "issued_at", "expires_at")
+        for key in ("domain", "request_id", "node_id", "nonce", "issued_at_ms", "expires_at_ms")
     })
     message = ZDXMessage(
         kind="reattest_response",
