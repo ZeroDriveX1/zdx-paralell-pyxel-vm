@@ -13,12 +13,18 @@ from __future__ import annotations
 
 import os
 
+from zdx_checkpoint import SpatialCheckpointManager, checkpoint_hash_from_memory
+
 from pyxel_registry import PyxelRegistry
 
 
 class ZDXAgentRuntime:
-    def __init__(self, registry: PyxelRegistry):
+    def __init__(self, registry: PyxelRegistry, *, checkpoint_interval: int = 10):
         self.registry = registry
+        if isinstance(checkpoint_interval, bool) or not isinstance(checkpoint_interval, int) or checkpoint_interval < 1:
+            raise ValueError("checkpoint_interval must be a positive integer")
+        self.checkpoint_interval = checkpoint_interval
+        self._spatial_sessions = {}
 
     def _memory(self):
         try:
@@ -33,10 +39,13 @@ class ZDXAgentRuntime:
         return layout.to_dict() if hasattr(layout, "to_dict") else dict(layout)
 
     def _state_payload(self, vm, *, spatial_layout=None, source_frame=None):
+        marker = vm.checkpoint_marker() if hasattr(vm, "checkpoint_marker") else None
         payload = {
             "shared_state": dict(vm.shared),
             "register_state": {name: dict(values) for name, values in vm.registers.items()},
         }
+        if marker is not None:
+            payload["vm_checkpoint"] = marker
         layout_payload = self._layout_payload(spatial_layout)
         if layout_payload is not None:
             payload["spatial_layout"] = layout_payload
@@ -56,6 +65,27 @@ class ZDXAgentRuntime:
         else:
             for key, value in payload.items():
                 mem.remember(key, value)
+
+    def checkpoint(self, image_path: str, *, barrier: bool = True) -> dict | None:
+        """Persist the latest resident generation for a spatial frame."""
+        session = self._spatial_sessions.get(os.path.abspath(image_path))
+        if session is None:
+            return None
+        vm = self.registry.get("vm")
+        marker = vm.checkpoint_marker()
+        session["manager"].submit(
+            session["frame"],
+            session["values"],
+            generation=marker["generation"],
+            checkpoint_hash=marker["checkpoint_hash"],
+            barrier=barrier,
+        )
+        return marker
+
+    def close(self, *, flush: bool = True):
+        for session in list(self._spatial_sessions.values()):
+            session["manager"].close(flush=flush)
+        self._spatial_sessions.clear()
 
     def run_mission(self, mission: str):
         """Execute a mission through registered scheduler/mission-agent components."""
@@ -102,18 +132,50 @@ class ZDXAgentRuntime:
                     raise ValueError("same-frame spatial memory must use the VM's exact layout")
 
         resident_execute = getattr(vm, "execute_spatial_frame", None)
-        resident_transaction = getattr(mem, "spatial_transaction", None) if mem is not None else None
-        if same_frame and callable(resident_execute) and callable(resident_transaction):
-            def execute_and_persist(frame, values):
-                resident_execute(frame)
-                values.update(self._state_payload(
-                    vm,
-                    spatial_layout=layout,
-                    source_frame=image_path,
-                ))
-                return vm.registers
+        if same_frame and callable(resident_execute):
+            session_key = os.path.abspath(image_path)
+            session = self._spatial_sessions.get(session_key)
+            if session is None:
+                store = getattr(mem, "_store", None)
+                loader = getattr(store, "load_resident_snapshot", None)
+                if not callable(loader):
+                    raise RuntimeError("same-frame spatial memory requires resident snapshot support")
+                frame, values, _store_generation, artifact_sha = loader()
+                persisted = values.get("vm_checkpoint")
+                if persisted is not None:
+                    vm.restore_checkpoint(
+                        generation=persisted["generation"],
+                        clock=persisted.get("clock", 0),
+                        registers=values["register_state"],
+                        shared=values["shared_state"],
+                        checkpoint_hash=persisted["checkpoint_hash"],
+                    )
+                    if checkpoint_hash_from_memory(values) != persisted["checkpoint_hash"]:
+                        raise ValueError("resident checkpoint state failed hash verification")
+                manager = SpatialCheckpointManager(
+                    store,
+                    interval=self.checkpoint_interval,
+                    initial_artifact_sha256=artifact_sha,
+                )
+                session = {"frame": frame, "values": values, "manager": manager}
+                self._spatial_sessions[session_key] = session
 
-            return resident_transaction(execute_and_persist)
+            resident_execute(session["frame"])
+            session["values"].update(self._state_payload(
+                vm,
+                spatial_layout=layout,
+                source_frame=image_path,
+            ))
+            marker = vm.checkpoint_marker()
+            manager = session["manager"]
+            if manager.due(marker["generation"]):
+                manager.submit(
+                    session["frame"],
+                    session["values"],
+                    generation=marker["generation"],
+                    checkpoint_hash=marker["checkpoint_hash"],
+                )
+            return vm.registers
 
         execute(image_path)
         self._persist_state(
