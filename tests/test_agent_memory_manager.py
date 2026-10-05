@@ -215,3 +215,17 @@ def test_corrupt_sequence_metadata_fails_closed(tmp_path):
         manager.snapshot("facts")
 
     runtime.close(flush=False)
+
+
+def test_append_keys_are_reserved_from_explicit_set(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    manager = runtime.memory_manager(path)
+
+    generated = manager.append("episodic", {"event": 1})
+    assert generated.startswith("_append/")
+    assert manager.get("episodic", generated) == {"event": 1}
+
+    with pytest.raises(ValueError, match="reserved append prefix"):
+        manager.set("episodic", "_append/0000000000009999", {"event": 2})
+
+    runtime.close()
