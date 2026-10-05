@@ -1,6 +1,10 @@
 from typing import Mapping, Optional
 from zdx_parallel_vm import ParallelPyxelVM, SimpleCompiler
 
+SPATIAL_FRAME_VERSION: int
+SPATIAL_PNG_FEATURE: str
+MAX_SPATIAL_CELLS: int
+
 class SpatialRegion:
     name: str
     x: int
@@ -63,6 +67,7 @@ class SpatialCompiler:
 class SpatialPyxelVM(ParallelPyxelVM):
     layout: SpatialLayout
     def __init__(self, layout: Optional[SpatialLayout] = ..., **kwargs) -> None: ...
+    def execute_spatial_frame(self, frame: SpatialFrame) -> dict: ...
     def execute_spatial(self, image_path: str) -> dict: ...
     def open_spatial_frame(self, image_path: str) -> SpatialFrame: ...
     def spatial_address(self, x: int, y: int) -> int: ...
