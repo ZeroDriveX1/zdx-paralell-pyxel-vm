@@ -13,6 +13,7 @@ MEMORY_SCHEMA_VERSION = 1
 _NAMESPACE = re.compile(r"^[a-z][a-z0-9_.-]{0,63}$")
 _KEY = re.compile(r"^[A-Za-z0-9_.:/-]{1,160}$")
 _EVICTION = frozenset({"reject", "fifo"})
+_APPEND_KEY_PREFIX = "_append/"
 
 
 class MemoryQuotaExceeded(ValueError):
@@ -318,31 +319,40 @@ class SpatialAgentMemoryManager:
                 for key, record in sorted(entries.items())
             }
 
+    def _set_locked(self, namespace: str, key: str, value) -> None:
+        candidate_values = copy.deepcopy(self.session.values)
+        root = candidate_values[MEMORY_ROOT_KEY]
+        sequence = root["next_sequence"]
+        root["next_sequence"] = sequence + 1
+        root["namespaces"][namespace]["entries"][key] = {
+            "sequence": sequence,
+            "value": copy.deepcopy(value),
+        }
+        self._enforce_namespace(root, namespace, protected_key=key)
+        self._ensure_global_capacity_with_fifo(
+            candidate_values, namespace, protected_key=key
+        )
+        self.session.values.clear()
+        self.session.values.update(candidate_values)
+        self.session.mark_dirty()
+
     def set(self, namespace: str, key: str, value) -> None:
         self._require_namespace(namespace)
         self._validate_key(key)
+        if key.startswith(_APPEND_KEY_PREFIX):
+            raise ValueError("memory keys beginning with reserved append prefix are not allowed")
         with self.session.locked():
-            candidate_values = copy.deepcopy(self.session.values)
-            root = candidate_values[MEMORY_ROOT_KEY]
-            sequence = root["next_sequence"]
-            root["next_sequence"] = sequence + 1
-            root["namespaces"][namespace]["entries"][key] = {
-                "sequence": sequence,
-                "value": copy.deepcopy(value),
-            }
-            self._enforce_namespace(root, namespace, protected_key=key)
-            self._ensure_global_capacity_with_fifo(
-                candidate_values, namespace, protected_key=key
-            )
-            self.session.values.clear()
-            self.session.values.update(candidate_values)
-            self.session.mark_dirty()
+            self._set_locked(namespace, key, value)
 
     def append(self, namespace: str, value) -> str:
+        self._require_namespace(namespace)
         with self.session.locked():
             root = self._root()
-            key = f"{root['next_sequence']:016x}"
-            self.set(namespace, key, value)
+            sequence = root["next_sequence"]
+            key = f"{_APPEND_KEY_PREFIX}{sequence:016x}"
+            if key in root["namespaces"][namespace]["entries"]:
+                raise ValueError("generated append key collides with persisted memory")
+            self._set_locked(namespace, key, value)
             return key
 
     def delete(self, namespace: str, key: str) -> bool:
