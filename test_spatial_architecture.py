@@ -277,14 +277,17 @@ def test_agent_memory_can_share_executable_spatial_frame():
         registry = PyxelRegistry()
         registry.register("vm", SpatialPyxelVM(layout=layout))
         registry.register("memory", memory)
-        result = ZDXAgentRuntime(registry).run_spatial(path)
+        runtime = ZDXAgentRuntime(registry)
+        result = runtime.run_spatial(path)
         assert result["T0"]["OUT"] == 17
+        runtime.checkpoint(path, barrier=True)
         assert memory.recall("shared_state")["M0"] == 17
         assert memory.recall("spatial_layout")["execution_rows"] == 1
         # Persisting agent state must not rewrite the executable row.
         vm2 = SpatialPyxelVM(layout=layout)
         vm2.execute_spatial(path)
         assert vm2.shared["M0"] == 17
+        runtime.close()
 
 
 def test_spatial_memory_is_binary_typed_not_json_text():
