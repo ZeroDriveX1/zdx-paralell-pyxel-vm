@@ -88,6 +88,9 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
         return registration
     }
 
+    fun heartbeat(payload: JSONObject = JSONObject()): JSONObject =
+        request("heartbeat", payload)
+
     fun poll(availableMemoryMb: Int, cpuCount: Int, cpuPercent: Double): JSONObject = request(
         "compute_poll", JSONObject().put("available_memory_mb", availableMemoryMb)
             .put("cpu_count", cpuCount).put("cpu_percent", cpuPercent)
