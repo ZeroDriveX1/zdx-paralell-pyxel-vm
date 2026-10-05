@@ -289,22 +289,29 @@ class SpatialFrame:
         if not (0 <= x0 < x1 <= self.layout.width and 0 <= y0 < y1 <= self.layout.height):
             raise ValueError("dirty rectangle is outside spatial frame bounds")
         pending = (x0, y0, x1, y1)
-        merged: list[tuple[int, int, int, int]] = []
-        for current in self._dirty_rectangles:
-            cx0, cy0, cx1, cy1 = current
+        remaining = list(self._dirty_rectangles)
+        while True:
+            next_remaining: list[tuple[int, int, int, int]] = []
+            changed = False
             px0, py0, px1, py1 = pending
-            separated = px1 < cx0 or cx1 < px0 or py1 < cy0 or cy1 < py0
-            if separated:
-                merged.append(current)
-                continue
-            pending = (
-                min(px0, cx0),
-                min(py0, cy0),
-                max(px1, cx1),
-                max(py1, cy1),
-            )
-        merged.append(pending)
-        self._dirty_rectangles = merged
+            for current in remaining:
+                cx0, cy0, cx1, cy1 = current
+                separated = px1 < cx0 or cx1 < px0 or py1 < cy0 or cy1 < py0
+                if separated:
+                    next_remaining.append(current)
+                    continue
+                pending = (
+                    min(px0, cx0),
+                    min(py0, cy0),
+                    max(px1, cx1),
+                    max(py1, cy1),
+                )
+                px0, py0, px1, py1 = pending
+                changed = True
+            if not changed:
+                self._dirty_rectangles = next_remaining + [pending]
+                return
+            remaining = next_remaining
 
     def clone(self) -> "SpatialFrame":
         """Return an independent frozen-capable copy of this decoded raster."""
