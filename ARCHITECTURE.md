@@ -5,6 +5,12 @@ capability discovery, resource admission, durable queue state, and artifact
 mobility. The distributed unit is a bounded content-addressed frame task, not a
 shared physical-memory process.
 
+## Spatial PNG machine model
+
+The current runtime supports the restored spatial PNG v1 contract. A standards-valid RGB PNG is both executable artifact and addressable state container: X/Y provide cell location/topology, R dispatches the existing 16-opcode ISA in executable rows, and G/B carry operands or data. Rows outside the declared execution plane are never scheduled and may be subdivided into named storage regions.
+
+Agent memory can use a dedicated spatial PNG or bind to a named storage region in the same executable frame. The active spatial-memory backend uses deterministic binary typed records with checksums and atomic commits rather than JSON text. Spatial task metadata is capability-gated before lease and the declared geometry is reconstructed and validated before execution.
+
 ## Runtime layers
 
 - `zdx_parallel_vm.py`: deterministic local Pyxel VM execution and existing
