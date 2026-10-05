@@ -341,5 +341,6 @@ All code follows these standards:
 - Added bounded binary spatial inbox/outbox rings with monotonic sequence numbers and domain-separated SHA-256 message integrity.
 - Refactored `ZDXAgentRuntime` same-frame execution through the session abstraction.
 - Added dirty-session tracking so clean flush/close persists state even before the normal 10-execution checkpoint interval.
+- Added `SpatialFrame.dirty_rectangles` with bounded, clone-safe, conservatively coalesced mutation rectangles.
 - Added checkpoint request tickets so exact barriers wait for the requested frozen snapshot even when multiple states share one VM generation.
 - Added tests for ABI rebinding rejection, mailbox FIFO/full/wrap/tamper behavior, restart persistence, clean-close durability, and same-generation exact barriers.
