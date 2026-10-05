@@ -29,8 +29,13 @@ AGENT_REGION_ROLES = frozenset({
 })
 
 _MIN_ROLE_CAPACITY = {
-    ROLE_MAILBOX_IN: 128,
-    ROLE_MAILBOX_OUT: 128,
+    # Default mailbox: 36-byte header + one 256-byte slot.
+    ROLE_MAILBOX_IN: 292,
+    ROLE_MAILBOX_OUT: 292,
+    # Capability header plus at least a small grant payload.
+    ROLE_CAPABILITIES: 64,
+    # Default journal: 68-byte header + one 384-byte slot.
+    ROLE_PROVENANCE: 452,
 }
 
 
