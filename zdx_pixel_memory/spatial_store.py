@@ -214,13 +214,13 @@ class SpatialPixelStore:
         self.lock_timeout = lock_timeout
         target = Path(self.path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        locks = target.parent / ".locks"
-        locks.mkdir(parents=True, exist_ok=True)
-        self._lock_path = locks / f"{target.name}.lock"
+        self._lock_path = Path(str(target) + ".lock")
         if self.capacity_bytes <= _HEADER_SIZE:
             raise ValueError("spatial memory region is too small for its header")
         if not target.exists():
-            self._write_unlocked({})
+            with self._lock():
+                if not target.exists():
+                    self._write_unlocked({})
 
     @property
     def capacity_bytes(self) -> int:
@@ -312,7 +312,12 @@ class SpatialPixelStore:
                 os.replace(target, quarantine)
             if recovered is not None:
                 backup_frame, values, generation = recovered
-                atomic_write_bytes(target, backup_frame.to_png_bytes(), keep_backup=False)
+                atomic_write_bytes(
+                    target,
+                    backup_frame.to_png_bytes(),
+                    keep_backup=False,
+                    _already_locked=True,
+                )
                 return backup_frame, values, generation
             reason = (
                 "backup execution plane differs from current frame"
@@ -347,7 +352,7 @@ class SpatialPixelStore:
             frame = SpatialFrame.blank(self.layout)
             current_generation = generation or 0
         self._write_frame_unlocked(frame, values, current_generation)
-        atomic_write_bytes(target, frame.to_png_bytes())
+        atomic_write_bytes(target, frame.to_png_bytes(), _already_locked=True)
 
     def transaction_frame(self, mutator):
         """Run one locked resident-frame transaction and checkpoint once.
@@ -363,7 +368,7 @@ class SpatialPixelStore:
             if not isinstance(values, dict):
                 raise TypeError("spatial frame transaction memory root must remain a dictionary")
             self._write_frame_unlocked(frame, values, generation)
-            atomic_write_bytes(self.path, frame.to_png_bytes())
+            atomic_write_bytes(self.path, frame.to_png_bytes(), _already_locked=True)
             return result
 
     def write(self, key: str, value) -> str:
