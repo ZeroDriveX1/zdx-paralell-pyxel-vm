@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import io
+import os
 import json
 from typing import Mapping, Optional
 
@@ -27,6 +28,9 @@ from zdx_storage import atomic_write_bytes
 
 
 _NOP = (0, 0, 0)
+SPATIAL_FRAME_VERSION = 1
+SPATIAL_PNG_FEATURE = "spatial-png-v1"
+MAX_SPATIAL_CELLS = 16_777_216
 
 
 @dataclass(frozen=True)
@@ -66,8 +70,16 @@ class SpatialLayout:
     regions: tuple[SpatialRegion, ...] = ()
 
     def __post_init__(self) -> None:
+        if isinstance(self.width, bool) or isinstance(self.height, bool) or isinstance(self.execution_rows, bool):
+            raise ValueError("SpatialLayout dimensions must be integers, not booleans")
+        if not all(isinstance(value, int) for value in (self.width, self.height, self.execution_rows)):
+            raise ValueError("SpatialLayout dimensions must be integers")
         if self.width < 1 or self.height < 1:
             raise ValueError("SpatialLayout width/height must be >= 1")
+        if self.width * self.height > MAX_SPATIAL_CELLS:
+            raise ValueError(
+                f"SpatialLayout exceeds maximum cell count {MAX_SPATIAL_CELLS}"
+            )
         if not 0 <= self.execution_rows <= self.height:
             raise ValueError("execution_rows must be between 0 and image height")
 
@@ -85,7 +97,12 @@ class SpatialLayout:
                 raise ValueError(f"region {region.name!r} has a negative origin")
             if region.x + region.width > self.width or region.y + region.height > self.height:
                 raise ValueError(f"region {region.name!r} exceeds frame bounds")
-            if region.kind != "execution" and region.y < self.execution_rows:
+            if region.kind != "data":
+                raise ValueError(
+                    f"named spatial region {region.name!r} must use kind='data'; "
+                    "the execution plane is implicit"
+                )
+            if region.y < self.execution_rows:
                 raise ValueError(
                     f"data region {region.name!r} overlaps executable rows 0..{self.execution_rows - 1}"
                 )
@@ -161,12 +178,20 @@ class SpatialLayout:
         unknown = set(payload) - allowed
         if unknown:
             raise ValueError(f"unknown spatial layout fields: {sorted(unknown)}")
-        try:
-            width = int(payload["width"])
-            height = int(payload["height"])
-            execution_rows = int(payload["execution_rows"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError("spatial layout requires integer width, height, and execution_rows") from exc
+        def strict_int(name: str) -> int:
+            try:
+                value = payload[name]
+            except KeyError as exc:
+                raise ValueError(
+                    "spatial layout requires integer width, height, and execution_rows"
+                ) from exc
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"spatial layout field {name!r} must be an integer")
+            return value
+
+        width = strict_int("width")
+        height = strict_int("height")
+        execution_rows = strict_int("execution_rows")
         regions = []
         for raw in payload.get("regions", ()) or ():
             if not isinstance(raw, Mapping):
@@ -176,17 +201,33 @@ class SpatialLayout:
             if region_unknown:
                 raise ValueError(f"unknown spatial region fields: {sorted(region_unknown)}")
             try:
-                regions.append(SpatialRegion(
-                    name=str(raw["name"]),
-                    x=int(raw["x"]),
-                    y=int(raw["y"]),
-                    width=int(raw["width"]),
-                    height=int(raw["height"]),
-                    kind=str(raw.get("kind", "data")),
-                ))
+                name = raw["name"]
+                if not isinstance(name, str):
+                    raise ValueError("spatial region name must be a string")
+                numeric = {}
+                for field_name in ("x", "y", "width", "height"):
+                    value = raw[field_name]
+                    if isinstance(value, bool) or not isinstance(value, int):
+                        raise ValueError(f"spatial region field {field_name!r} must be an integer")
+                    numeric[field_name] = value
+                kind = raw.get("kind", "data")
+                if not isinstance(kind, str):
+                    raise ValueError("spatial region kind must be a string")
+                region = SpatialRegion(name=name, kind=kind, **numeric)
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError("spatial region has invalid geometry") from exc
-        return cls(width=width, height=height, execution_rows=execution_rows, regions=tuple(regions))
+            if "capacity_bytes" in raw and raw["capacity_bytes"] != region.capacity_bytes:
+                raise ValueError(f"spatial region {name!r} capacity_bytes does not match geometry")
+            regions.append(region)
+        layout = cls(width=width, height=height, execution_rows=execution_rows, regions=tuple(regions))
+        if "raw_capacity_bytes" in payload and payload["raw_capacity_bytes"] != layout.raw_capacity_bytes:
+            raise ValueError("spatial layout raw_capacity_bytes does not match geometry")
+        if (
+            "storage_capacity_bytes" in payload
+            and payload["storage_capacity_bytes"] != layout.storage_capacity_bytes
+        ):
+            raise ValueError("spatial layout storage_capacity_bytes does not match geometry")
+        return layout
 
     def to_dict(self) -> dict:
         return {
@@ -239,6 +280,17 @@ class SpatialFrame:
     @classmethod
     def open(cls, path: str, layout: SpatialLayout) -> "SpatialFrame":
         with Image.open(path) as image:
+            if image.format != "PNG":
+                raise ValueError("spatial frame must be a PNG container")
+            if image.mode != "RGB":
+                raise ValueError(
+                    f"spatial frame must be canonical RGB, got mode {image.mode!r}"
+                )
+            if image.size != (layout.width, layout.height):
+                raise ValueError(
+                    f"frame size {image.size} does not match spatial layout "
+                    f"{layout.width}x{layout.height}"
+                )
             image.load()
             return cls(image.copy(), layout)
 
@@ -402,10 +454,37 @@ class SpatialPyxelVM(ParallelPyxelVM):
         kwargs["threads"] = requested_threads
         super().__init__(**kwargs)
 
+    def execute_spatial_frame(self, frame: SpatialFrame) -> dict:
+        """Execute an already-decoded spatial frame.
+
+        This resident path avoids a second PNG decode and is intended for
+        agent/module transactions that update non-executable regions before one
+        checkpoint commit.
+        """
+        if frame.layout != self.layout:
+            raise ValueError("resident spatial frame layout does not match VM layout")
+        arr = np.array(frame.image, dtype=np.uint8, copy=False)
+        next_frame = self._execute_array(arr, source_label="<resident-spatial-frame>")
+        if next_frame is not None:
+            if self.max_chain <= 1:
+                raise RuntimeError("resident spatial frame requested a chain beyond max_chain")
+            if not os.path.exists(next_frame):
+                raise FileNotFoundError(
+                    f"SAVE_STATE chained to {next_frame!r} but the file does not exist"
+                )
+            original_max_chain = self.max_chain
+            self.max_chain = original_max_chain - 1
+            try:
+                self.execute_texture(next_frame)
+            finally:
+                self.max_chain = original_max_chain
+        if self.persist_shared:
+            self._save_shared()
+        return self.registers
+
     def execute_spatial(self, image_path: str) -> dict:
-        # Opening validates that the PNG dimensions match the geometry contract.
-        SpatialFrame.open(image_path, self.layout)
-        return self.execute_texture(image_path)
+        frame = SpatialFrame.open(image_path, self.layout)
+        return self.execute_spatial_frame(frame)
 
     def open_spatial_frame(self, image_path: str) -> SpatialFrame:
         return SpatialFrame.open(image_path, self.layout)
