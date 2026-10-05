@@ -8,7 +8,7 @@ Agent ABI v1 binds semantic roles to distinct named storage regions and pins the
 
 Checkpoint barriers now carry monotonic snapshot tickets in addition to VM generation so state-only mutations at the same VM generation cannot cause an exact barrier to return before the requested frozen snapshot is durable. Clean close also forces dirty state durable before shutdown.
 
-This pass is the foundation for subsequent memory namespaces/quotas, capability/tool authorization, replay journaling, and dirty-region tracking.
+This pass also defines `SpatialFrame.dirty_rectangles` for resident mutation tracking. Subsequent work will use those rectangles for memory namespaces/quotas, capability/tool authorization, replay journaling, and dirty-region-aware checkpoint/tiled-copy optimization.
 
 
 ## Pass 18.0 — Support Mode, Lightweight Re-auth, and Comprehensive Validation
