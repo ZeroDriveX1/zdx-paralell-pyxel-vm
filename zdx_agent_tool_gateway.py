@@ -47,16 +47,19 @@ class ToolCapabilityRule:
             raise ValueError("tool capability operations must be non-empty exact names")
         if len(set(self.operations)) != len(self.operations):
             raise ValueError("tool capability operations contain duplicates")
-        if any(not isinstance(prefix, str) or len(prefix) > 512 for prefix in self.resource_prefixes):
-            raise ValueError("tool capability resource prefixes are invalid")
+        if any(
+            not isinstance(prefix, str) or not prefix or len(prefix) > 512
+            for prefix in self.resource_prefixes
+        ):
+            raise ValueError("tool capability resource prefixes must be non-empty strings")
         if not isinstance(self.require_barrier, bool):
             raise ValueError("require_barrier must be boolean")
 
     def to_dict(self) -> dict:
         return {
             "tool": self.tool,
-            "operations": list(self.operations),
-            "resource_prefixes": list(self.resource_prefixes),
+            "operations": sorted(self.operations),
+            "resource_prefixes": sorted(self.resource_prefixes),
             "require_barrier": self.require_barrier,
         }
 
@@ -141,6 +144,7 @@ class AgentActionProposal:
     operation: str
     resource: str
     arguments: dict
+    idempotency_key: str
     generation: int
     checkpoint_hash: str
     policy_hash: str
@@ -152,6 +156,7 @@ class AgentActionProposal:
             "operation": self.operation,
             "resource": self.resource,
             "arguments": copy.deepcopy(self.arguments),
+            "idempotency_key": self.idempotency_key,
             "generation": self.generation,
             "checkpoint_hash": self.checkpoint_hash,
             "policy_hash": self.policy_hash,
@@ -204,9 +209,9 @@ def _canonical_arguments(value):
     if value is None or isinstance(value, (bool, str, int)):
         return value
     if isinstance(value, float):
-        if value != value or value in (float("inf"), float("-inf")):
-            raise ValueError("tool arguments cannot contain non-finite floats")
-        return value
+        raise TypeError(
+            "tool action hashes do not accept floats; use integer units or canonical strings"
+        )
     if isinstance(value, list):
         return [_canonical_arguments(item) for item in value]
     if isinstance(value, tuple):
@@ -272,6 +277,7 @@ class AgentToolGateway:
         operation: str,
         resource: str,
         arguments: dict,
+        idempotency_key: str,
         generation: int,
         checkpoint_hash: str,
         policy_hash: str,
@@ -282,6 +288,7 @@ class AgentToolGateway:
             "operation": operation,
             "resource": resource,
             "arguments": arguments,
+            "idempotency_key": idempotency_key,
             "generation": generation,
             "checkpoint_hash": checkpoint_hash,
             "policy_hash": policy_hash,
@@ -294,6 +301,7 @@ class AgentToolGateway:
         operation: str,
         resource: str = "",
         arguments: Mapping | None = None,
+        idempotency_key: str = "default",
     ) -> AgentActionProposal:
         if not isinstance(tool, str) or not _NAME.fullmatch(tool):
             raise ValueError("tool name is invalid")
@@ -301,12 +309,15 @@ class AgentToolGateway:
             raise ValueError("tool operation is invalid")
         if not isinstance(resource, str) or len(resource) > 2048:
             raise ValueError("tool resource is invalid")
+        if not isinstance(idempotency_key, str) or not _NAME.fullmatch(idempotency_key):
+            raise ValueError("tool idempotency_key is invalid")
         canonical_args = _canonical_arguments(dict(arguments or {}))
         payload = self._proposal_payload(
             tool=tool,
             operation=operation,
             resource=resource,
             arguments=canonical_args,
+            idempotency_key=idempotency_key,
             generation=self.session.generation,
             checkpoint_hash=self.session.checkpoint_hash,
             policy_hash=self.policy.policy_hash,
@@ -324,6 +335,7 @@ class AgentToolGateway:
             operation=operation,
             resource=resource,
             arguments=canonical_args,
+            idempotency_key=idempotency_key,
             generation=payload["generation"],
             checkpoint_hash=payload["checkpoint_hash"],
             policy_hash=payload["policy_hash"],
@@ -422,6 +434,7 @@ class AgentToolGateway:
         operation: str,
         resource: str = "",
         arguments: Mapping | None = None,
+        idempotency_key: str = "default",
         approval=None,
     ):
         proposal = self.propose(
@@ -429,6 +442,7 @@ class AgentToolGateway:
             operation=operation,
             resource=resource,
             arguments=arguments,
+            idempotency_key=idempotency_key,
         )
         decision = self.authorize(proposal, approval=approval)
         if not decision.allowed:
@@ -471,9 +485,14 @@ class AgentToolGateway:
                 "type": type(exc).__name__,
                 "message": str(exc)[:512],
             }
-            self.memory.set("system", intent_key, failed)
-            if rule.require_barrier:
-                self.session.checkpoint(barrier=True)
+            try:
+                self.memory.set("system", intent_key, failed)
+                if rule.require_barrier:
+                    self.session.checkpoint(barrier=True)
+            except Exception as persist_exc:
+                raise AmbiguousToolOutcomeError(
+                    "tool failed and ambiguous-outcome state could not be durably recorded"
+                ) from persist_exc
             raise ToolExecutionError(
                 f"tool handler raised {type(exc).__name__}; outcome requires review"
             ) from exc
