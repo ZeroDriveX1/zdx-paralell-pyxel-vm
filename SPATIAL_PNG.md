@@ -106,3 +106,14 @@ Spatial v1 rejects implicit image conversion and ambiguous geometry:
 ## Operational boundary
 
 Spatial mode removes per-key PNG files, JSON serialization in the active memory format, and repeated state-file commits for batch runtime updates. The current persistent backend still decodes and re-encodes the PNG at commit boundaries. Hot-loop agent IPC should therefore operate on a resident decoded raster and checkpoint to PNG transactionally; persistent PNG compression is not itself treated as the acceleration mechanism.
+
+## Checkpoint cadence and lineage
+
+The resident execution path does not rewrite the PNG after every VM execution. The default checkpoint interval is 10 completed executions. Generations between durable checkpoints remain volatile and may be lost after a hard crash.
+
+Every completed execution receives a deterministic VM checkpoint marker containing generation, clock, and a state hash. When a generation is selected for durability, the checkpoint worker freezes the resident frame/state, recomputes the same state hash, and refuses the checkpoint if the hashes differ.
+
+Non-barrier checkpoint requests coalesce to the newest pending generation. Barrier checkpoints are exact and are used before/after externally consequential operations, on explicit durability requests, and for final shutdown/mission completion.
+
+A committed checkpoint also receives the SHA-256 of the exact PNG artifact. VM-state identity and PNG-artifact identity are deliberately separate so state lineage remains verifiable independently of PNG compression bytes.
+
