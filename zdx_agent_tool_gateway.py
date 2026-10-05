@@ -375,20 +375,26 @@ class AgentToolGateway:
         response,
         proposal: AgentActionProposal,
     ) -> AgentActionDecision:
-        if isinstance(response, str):
-            decision = response
-            reason = "external authorizer decision"
-        elif isinstance(response, Mapping):
-            decision = response.get("decision")
-            reason = str(response.get("reason", "external authorizer decision"))
-        else:
+        if not isinstance(response, Mapping):
             return AgentActionDecision(
-                "deny", "external authorizer returned an invalid response",
+                "deny", "external authorizer must return a bound decision object",
                 proposal.action_hash, proposal.policy_hash,
             )
+        decision = response.get("decision")
+        reason = str(response.get("reason", "external authorizer decision"))
         if decision not in _DECISIONS:
             return AgentActionDecision(
                 "deny", "external authorizer returned an unknown decision",
+                proposal.action_hash, proposal.policy_hash,
+            )
+        if response.get("action_hash") != proposal.action_hash:
+            return AgentActionDecision(
+                "deny", "external authorization action hash does not match proposal",
+                proposal.action_hash, proposal.policy_hash,
+            )
+        if response.get("policy_hash") != proposal.policy_hash:
+            return AgentActionDecision(
+                "deny", "external authorization policy hash does not match proposal",
                 proposal.action_hash, proposal.policy_hash,
             )
         return AgentActionDecision(
