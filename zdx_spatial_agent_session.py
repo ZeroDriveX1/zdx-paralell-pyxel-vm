@@ -41,6 +41,9 @@ class SpatialAgentSession:
         self._mailboxes: dict[str, SpatialMailbox] = {}
         self._closed = False
         self._dirty = bool(dirty)
+        self._dirty_roles: set[str] = set()
+        if dirty:
+            self._dirty_roles.add(ROLE_PERSISTENT_MEMORY)
         self._lock = threading.RLock()
 
     @staticmethod
@@ -181,6 +184,15 @@ class SpatialAgentSession:
         self.values["source_frame"] = self.image_path
         return state["vm_checkpoint"]
 
+    def mark_dirty(self, role: str | None = None) -> None:
+        self._dirty = True
+        if role:
+            self._dirty_roles.add(str(role))
+
+    @property
+    def dirty_roles(self) -> tuple[str, ...]:
+        return tuple(sorted(self._dirty_roles))
+
     @property
     def generation(self) -> int:
         return int(self.values["vm_checkpoint"]["generation"])
@@ -195,7 +207,7 @@ class SpatialAgentSession:
             self._activate_vm()
             self.vm.execute_spatial_frame(self.frame)
             marker = self._capture_state()
-            self._dirty = True
+            self.mark_dirty("vm_state")
             if self.manager.due(marker["generation"]):
                 self.manager.submit(
                     self.frame,
@@ -204,6 +216,7 @@ class SpatialAgentSession:
                     checkpoint_hash=marker["checkpoint_hash"],
                 )
                 self._dirty = False
+                self._dirty_roles.clear()
             return self.vm.registers
 
     def mailbox(self, role: str, *, slot_size: int = 256) -> SpatialMailbox:
@@ -216,7 +229,7 @@ class SpatialAgentSession:
             if cached is None:
                 cached = SpatialMailbox(self.frame, region, slot_size=slot_size)
                 self._mailboxes[role] = cached
-                self._dirty = True
+                self.mark_dirty(role)
             elif cached.slot_size != slot_size:
                 raise ValueError("mailbox already opened with a different slot size")
             return cached
@@ -237,14 +250,14 @@ class SpatialAgentSession:
                 recipient=recipient,
                 topic=topic,
             )
-            self._dirty = True
+            self.mark_dirty(role)
             return message
 
     def receive(self, *, role: str = ROLE_MAILBOX_IN):
         with self._lock:
             message = self.mailbox(role).dequeue()
             if message is not None:
-                self._dirty = True
+                self.mark_dirty(role)
             return message
 
     def checkpoint(self, *, barrier: bool = True) -> dict:
@@ -260,6 +273,7 @@ class SpatialAgentSession:
                 barrier=barrier,
             )
             self._dirty = False
+            self._dirty_roles.clear()
             return copy.deepcopy(marker)
 
     def flush(self, timeout: float | None = None) -> bool:
