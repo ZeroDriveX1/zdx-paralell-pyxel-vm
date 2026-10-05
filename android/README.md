@@ -25,7 +25,11 @@ refreshes capabilities and policy state, sends authenticated heartbeats, and
 receives queue/cluster routing status without polling for or executing compute
 leases. Support mode is intentionally non-authoritative: it helps the scheduler
 with fresh availability/routing information but cannot bypass local compute
-policy or become a scheduler authority.
+policy or become a scheduler authority. Support nodes can also submit signed,
+advisory rectification requests for suspicious or stale-trust enrolled peers.
+Those requests only enter the trust-review queue; they cannot directly change
+karma, quarantine, suspend, or revoke another node. The Android status panel
+shows the aggregate pending trust-review count.
 
 ## Build a signed release APK
 
