@@ -10,8 +10,11 @@ from zdx_agent_abi import (
     ROLE_MAILBOX_IN,
     ROLE_MAILBOX_OUT,
     ROLE_PERSISTENT_MEMORY,
+    ROLE_PROVENANCE,
     SpatialAgentABI,
 )
+from zdx_agent_journal import SpatialEventJournal
+from zdx_agent_memory_manager import AgentMemoryManager
 from zdx_checkpoint import SpatialCheckpointManager, checkpoint_hash_from_memory
 from zdx_spatial_mailbox import SpatialMailbox
 
@@ -39,6 +42,8 @@ class SpatialAgentSession:
         self.manager = manager
         self.abi = abi
         self._mailboxes: dict[str, SpatialMailbox] = {}
+        self._journal: SpatialEventJournal | None = None
+        self._memory_manager: AgentMemoryManager | None = None
         self._closed = False
         self._dirty = bool(dirty)
         self._dirty_roles: set[str] = set()
@@ -193,6 +198,46 @@ class SpatialAgentSession:
     def dirty_roles(self) -> tuple[str, ...]:
         return tuple(sorted(self._dirty_roles))
 
+    def memory_manager(self) -> AgentMemoryManager:
+        with self._lock:
+            self._ensure_open()
+            if self._memory_manager is None:
+                self._memory_manager = AgentMemoryManager(self)
+            return self._memory_manager
+
+    def journal(self, *, slot_size: int = 384) -> SpatialEventJournal:
+        with self._lock:
+            self._ensure_open()
+            region = self.abi.require_region(ROLE_PROVENANCE)
+            if self._journal is None:
+                self._journal = SpatialEventJournal(
+                    self.frame, region, slot_size=slot_size
+                )
+                if self._journal.initialized_new:
+                    self.mark_dirty(ROLE_PROVENANCE)
+            elif self._journal.slot_size != slot_size:
+                raise ValueError("journal already opened with a different slot size")
+            return self._journal
+
+    def record_event(
+        self,
+        event_type: str,
+        payload: bytes = b"",
+        *,
+        generation: int | None = None,
+    ):
+        with self._lock:
+            self._ensure_open()
+            if self.abi.region_for(ROLE_PROVENANCE) is None:
+                return None
+            record = self.journal().append(
+                event_type,
+                payload,
+                generation=self.generation if generation is None else generation,
+            )
+            self.mark_dirty(ROLE_PROVENANCE)
+            return record
+
     @property
     def generation(self) -> int:
         return int(self.values["vm_checkpoint"]["generation"])
@@ -208,6 +253,11 @@ class SpatialAgentSession:
             self.vm.execute_spatial_frame(self.frame)
             marker = self._capture_state()
             self.mark_dirty("vm_state")
+            self.record_event(
+                "vm.execute",
+                marker["checkpoint_hash"].encode("ascii"),
+                generation=marker["generation"],
+            )
             if self.manager.due(marker["generation"]):
                 self.manager.submit(
                     self.frame,
@@ -251,6 +301,10 @@ class SpatialAgentSession:
                 topic=topic,
             )
             self.mark_dirty(role)
+            self.record_event(
+                "mailbox.send",
+                f"{message.sequence}:{message.sha256}".encode("ascii"),
+            )
             return message
 
     def receive(self, *, role: str = ROLE_MAILBOX_IN):
@@ -258,6 +312,10 @@ class SpatialAgentSession:
             message = self.mailbox(role).dequeue()
             if message is not None:
                 self.mark_dirty(role)
+                self.record_event(
+                    "mailbox.receive",
+                    f"{message.sequence}:{message.sha256}".encode("ascii"),
+                )
             return message
 
     def checkpoint(self, *, barrier: bool = True) -> dict:
@@ -292,3 +350,5 @@ class SpatialAgentSession:
             self.manager.close(flush=flush, timeout=timeout)
             self._closed = True
             self._mailboxes.clear()
+            self._journal = None
+            self._memory_manager = None
