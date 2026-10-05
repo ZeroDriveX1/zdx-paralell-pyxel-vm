@@ -132,6 +132,9 @@ class NodeService : Service() {
                 val reattestAck = nodeTransport.respondToReattestation(reattestChallenge)
                 val accepted = reattestAck.optJSONObject("payload")?.optBoolean("accepted", false) == true
                 if (!accepted) throw IOException("re-attestation was not accepted")
+                getSharedPreferences("zdx_status", MODE_PRIVATE).edit()
+                    .putLong("last_reattest_at", System.currentTimeMillis())
+                    .apply()
                 recordWork("REAUTH", "enrolled key possession re-verified", direction = "outgoing")
             }
             recordSupportStatus(supportReply, mode, policyBlock)
