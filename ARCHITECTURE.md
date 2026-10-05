@@ -9,7 +9,7 @@ shared physical-memory process.
 
 The current runtime supports the restored spatial PNG v1 contract. A standards-valid RGB PNG is both executable artifact and addressable state container: X/Y provide cell location/topology, R dispatches the existing 16-opcode ISA in executable rows, and G/B carry operands or data. Rows outside the declared execution plane are never scheduled and may be subdivided into named storage regions.
 
-Agent memory can use a dedicated spatial PNG or bind to a named storage region in the same executable frame. The active spatial-memory backend uses deterministic binary typed records with checksums and atomic commits rather than JSON text. Spatial task metadata is capability-gated before lease and the declared geometry is reconstructed and validated before execution.
+Agent memory can use a dedicated spatial PNG or bind to a named storage region in the same executable frame. The active spatial-memory backend uses deterministic binary typed records with checksums and atomic commits rather than JSON text. Same-frame agent execution uses one locked resident-raster transaction: decode once, execute, mutate only the declared data region, and checkpoint once. A failed transaction does not publish a new generation, and backup recovery cannot roll executable rows backward. Spatial task metadata is capability-gated before lease; version, geometry, execution-row count, and a conservative raster working-set budget are validated before execution.
 
 ## Runtime layers
 
