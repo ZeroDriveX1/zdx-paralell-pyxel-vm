@@ -56,3 +56,22 @@ The default trust-age interval is 24 hours and can be changed with
 trigger, not evidence of misconduct. Actual challenge/attestation resolution,
 karma changes, quarantine, suspension, and revocation remain separate policy
 steps and require verified evidence.
+
+## Lightweight re-attestation
+
+Stale-authentication rectification requests can now be resolved with a
+short-lived Ed25519 possession proof. The server issues a challenge bound to
+`zdx-reattest-v1`, the rectification request ID, target node ID, a random
+nonce, and integer millisecond issue/expiry times. The enrolled node signs that
+canonical payload with its existing private key.
+
+Challenges expire after two minutes by default, are one-time use, and are bound
+to one node and one pending authentication-age review. Successful
+re-attestation resets that node's trust-age freshness baseline and resolves
+only the stale-authentication review. Replay/rate-limit/suspicious-behavior
+reviews remain pending because key possession does not prove benign behavior.
+
+This path requires only an Ed25519 signature and the existing authenticated
+transport. It does not download artifacts, execute Pyxel workloads, consume a
+compute lease, or override local compute policy.
+
