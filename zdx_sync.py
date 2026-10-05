@@ -12,6 +12,7 @@ import hashlib
 import os
 
 from zdx_network import ZDXMessage
+from zdx_spatial_frame import SPATIAL_FRAME_VERSION, SpatialLayout
 
 
 class FrameSync:
@@ -32,9 +33,9 @@ class FrameSync:
         if layout is None:
             return None
         if hasattr(layout, "to_dict"):
-            return layout.to_dict()
+            layout = layout.to_dict()
         if isinstance(layout, dict):
-            return dict(layout)
+            return SpatialLayout.from_dict(layout).to_dict()
         raise TypeError("spatial_layout must be a dict, expose to_dict(), or be None")
 
     def register(self, path: str, *, spatial_layout=None):
@@ -56,7 +57,7 @@ class FrameSync:
             "execution_model": metadata["execution_model"],
         }
         if metadata["spatial_layout"] is not None:
-            payload["spatial_version"] = 1
+            payload["spatial_version"] = SPATIAL_FRAME_VERSION
             payload["spatial_layout"] = metadata["spatial_layout"]
         return ZDXMessage(kind="frame_announce", payload=payload)
 
