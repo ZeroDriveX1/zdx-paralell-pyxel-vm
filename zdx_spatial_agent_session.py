@@ -323,7 +323,7 @@ class SpatialAgentSession:
             self._ensure_open()
             self._activate_vm()
             marker = self._capture_state()
-            self.manager.submit(
+            request_id = self.manager.submit(
                 self.frame,
                 self.values,
                 generation=marker["generation"],
@@ -332,7 +332,11 @@ class SpatialAgentSession:
             )
             self._dirty = False
             self._dirty_roles.clear()
-            return copy.deepcopy(marker)
+            result = copy.deepcopy(marker)
+            result["checkpoint_request_id"] = request_id
+            if barrier:
+                result["artifact_sha256"] = self.manager.last_committed_artifact_sha256
+            return result
 
     def flush(self, timeout: float | None = None) -> bool:
         with self._lock:
