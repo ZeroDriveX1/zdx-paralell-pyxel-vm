@@ -48,6 +48,7 @@ class ZdxProtocol(private val context: Context) {
                 .put("queue-observer")
                 .put("routing-status")
                 .put("rectification-request")
+                .put("lightweight-reattest")
                 .put("artifact-sha256"))
             .put("cpu_count", cpuCount).put("hardware", capability.cpu)
             .put("memory_mb", capability.memoryMb).put("available_memory_mb", capability.availableMemoryMb)
