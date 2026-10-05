@@ -10,7 +10,7 @@ import struct
 from dataclasses import dataclass
 from typing import Callable, Iterable, Mapping
 
-from zdx_agent_abi import ROLE_CAPABILITIES
+from zdx_agent_abi import ROLE_CAPABILITIES, ROLE_PROVENANCE
 
 
 _CAP_MAGIC = b"ZDXCAP1\x00"
@@ -155,12 +155,18 @@ class AgentCapabilityGateway:
     def manifest_sha256(self) -> str:
         return hashlib.sha256(_encode_grants(self.grants.values())).hexdigest()
 
-    def install(self, session) -> str | None:
+    def install(self, session) -> str:
         region = session.abi.region_for(ROLE_CAPABILITIES)
         if region is None:
             raise ValueError(
                 "capability gateway requires an Agent ABI capabilities region"
             )
+        if session.abi.region_for(ROLE_PROVENANCE) is None:
+            raise ValueError(
+                "capability gateway requires an Agent ABI provenance region"
+            )
+        session.journal().verify()
+
         payload = _encode_grants(self.grants.values())
         digest = hashlib.sha256(payload).digest()
         document = _CAP_HEADER.pack(
@@ -172,12 +178,18 @@ class AgentCapabilityGateway:
                 f"capability table requires {len(document)} bytes; "
                 f"region capacity is {capacity}"
             )
-        session.frame.write_bytes(b"\x00" * capacity, region=region)
-        session.frame.write_bytes(document, region=region)
-        session.mark_dirty(ROLE_CAPABILITIES)
-        session.record_event(
-            "capability.install", self.manifest_sha256.encode("ascii")
-        )
+        previous = session.frame.read_bytes(capacity, region=region)
+        try:
+            session.frame.write_bytes(b"\x00" * capacity, region=region)
+            session.frame.write_bytes(document, region=region)
+            session.mark_dirty(ROLE_CAPABILITIES)
+            session.record_event(
+                "capability.install", self.manifest_sha256.encode("ascii")
+            )
+        except Exception:
+            session.frame.write_bytes(previous, region=region)
+            session.mark_dirty(ROLE_CAPABILITIES)
+            raise
         return self.manifest_sha256
 
     def _read_installed(self, session) -> tuple[CapabilityGrant, ...] | None:
@@ -247,6 +259,16 @@ class AgentCapabilityGateway:
         if not isinstance(action, str) or not _SAFE.fullmatch(action):
             raise ValueError("action name is invalid")
         args = self._arguments_bytes(arguments)
+        if session.abi.region_for(ROLE_PROVENANCE) is None:
+            return CapabilityDecision(
+                "deny", "provenance region is required", "", None
+            )
+        try:
+            session.journal().verify()
+        except Exception:
+            return CapabilityDecision(
+                "deny", "provenance journal verification failed", "", None
+            )
         grant = self.grants.get(capability)
         if grant is None:
             session.record_event("capability.deny", capability.encode("utf-8"))
