@@ -177,6 +177,7 @@ class ZDXServer(_core.ZDXServer):
                             "pending": self.rectification.pending_count(),
                             "reattest_after_seconds": self.reattest_after_seconds,
                         },
+                        "reattest_challenge": self._reattest_challenge_for_peer(message.peer_id),
                         "master": self.elected_master,
                         "cluster_id": self.cluster_state.cluster_id,
                     }))
