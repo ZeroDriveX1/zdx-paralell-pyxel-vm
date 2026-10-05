@@ -14,6 +14,9 @@ TOOL_POLICY_VERSION = 1
 ACTION_DOMAIN = "zdx-agent-action-v1"
 POLICY_DOMAIN = b"zdx-agent-tool-policy-v1\x00"
 MAX_ACTION_BYTES = 64 * 1024
+MAX_ARGUMENT_DEPTH = 16
+MAX_ARGUMENT_ITEMS = 2048
+MAX_ARGUMENT_STRING_BYTES = 16 * 1024
 _DECISIONS = frozenset({"allow", "deny", "approval_required"})
 _NAME = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 
@@ -96,6 +99,8 @@ class AgentToolPolicy:
             )
         if not isinstance(self.policy_id, str) or not _NAME.fullmatch(self.policy_id):
             raise ValueError("tool policy_id is invalid")
+        if any(not isinstance(rule, ToolCapabilityRule) for rule in self.rules):
+            raise TypeError("tool policy rules must be ToolCapabilityRule instances")
         tools = [rule.tool for rule in self.rules]
         if len(set(tools)) != len(tools):
             raise ValueError("tool policy contains duplicate tool rules")
@@ -205,25 +210,44 @@ class ToolRegistry:
         return sorted(self._handlers)
 
 
-def _canonical_arguments(value):
-    if value is None or isinstance(value, (bool, str, int)):
+def _canonical_arguments(value, *, _depth: int = 0, _budget: list[int] | None = None):
+    if _depth > MAX_ARGUMENT_DEPTH:
+        raise ValueError("tool arguments exceed maximum nesting depth")
+    if _budget is None:
+        _budget = [MAX_ARGUMENT_ITEMS]
+    _budget[0] -= 1
+    if _budget[0] < 0:
+        raise ValueError("tool arguments exceed maximum item count")
+
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, str):
+        if len(value.encode("utf-8")) > MAX_ARGUMENT_STRING_BYTES:
+            raise ValueError("tool argument string exceeds maximum size")
         return value
     if isinstance(value, float):
         raise TypeError(
             "tool action hashes do not accept floats; use integer units or canonical strings"
         )
-    if isinstance(value, list):
-        return [_canonical_arguments(item) for item in value]
-    if isinstance(value, tuple):
-        return [_canonical_arguments(item) for item in value]
+    if isinstance(value, (list, tuple)):
+        return [
+            _canonical_arguments(item, _depth=_depth + 1, _budget=_budget)
+            for item in value
+        ]
     if isinstance(value, Mapping):
         if any(not isinstance(key, str) for key in value):
             raise TypeError("tool argument object keys must be strings")
+        for key in value:
+            if len(key.encode("utf-8")) > 512:
+                raise ValueError("tool argument object key exceeds maximum size")
         return {
-            key: _canonical_arguments(value[key])
+            key: _canonical_arguments(
+                value[key], _depth=_depth + 1, _budget=_budget
+            )
             for key in sorted(value)
         }
     raise TypeError(f"unsupported tool argument type: {type(value).__name__}")
+
 
 
 class AgentToolGateway:
@@ -434,6 +458,8 @@ class AgentToolGateway:
         encoded = json.dumps(
             payload, sort_keys=True, separators=(",", ":"), allow_nan=False
         ).encode("utf-8")
+        if len(encoded) > MAX_ACTION_BYTES:
+            raise ToolAuthorizationError("proposal canonical action exceeds maximum size")
         expected_hash = hashlib.sha256(
             b"zdx-agent-action-v1\x00" + encoded
         ).hexdigest()
