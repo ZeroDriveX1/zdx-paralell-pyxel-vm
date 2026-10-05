@@ -194,11 +194,40 @@ class ComputeCoordinator:
             if worker is None:
                 raise ValueError(f"worker is not registered: {worker_id}")
             worker["last_seen"] = time.time()
+            capabilities = worker.get("capabilities", {})
+            static_memory = capabilities.get("memory_mb")
+            safe_limits = capabilities.get("safe_limits", {}) if isinstance(capabilities.get("safe_limits", {}), dict) else {}
+            safe_memory = safe_limits.get("memory_limit_mb")
+            memory_caps = [
+                int(value) for value in (static_memory, safe_memory)
+                if isinstance(value, int) and not isinstance(value, bool) and value > 0
+            ]
+            effective_memory = max(0, int(available_memory_mb))
+            if memory_caps:
+                effective_memory = min(effective_memory, *memory_caps)
+            reserved_memory = sum(
+                int(record.get("task", {}).get("memory_mb", 0))
+                for record in self._state["running"].values()
+                if record.get("worker_id") == worker_id
+            )
+            effective_memory = max(0, effective_memory - reserved_memory)
+
+            static_cpu = capabilities.get("cpu_count")
+            effective_cpu = max(1, int(cpu_count))
+            if isinstance(static_cpu, int) and not isinstance(static_cpu, bool) and static_cpu > 0:
+                effective_cpu = min(effective_cpu, static_cpu)
+            reserved_threads = sum(
+                int(record.get("task", {}).get("threads", 0))
+                for record in self._state["running"].values()
+                if record.get("worker_id") == worker_id
+            )
+            effective_cpu = max(0, effective_cpu - reserved_threads)
+
             candidates = sorted(self._state["queued"].values(), key=lambda item: (item["created_at"], item["task_id"]))
-            worker_features = set(worker.get("capabilities", {}).get("vm_features", []) or [])
+            worker_features = set(capabilities.get("vm_features", []) or [])
             for raw in candidates:
                 task = ComputeTask.from_dict(raw)
-                if task.memory_mb > available_memory_mb or task.threads > max(1, cpu_count):
+                if task.memory_mb > effective_memory or task.threads > effective_cpu:
                     continue
                 required_features = set(task.metadata.get("required_vm_features", []) or [])
                 if not required_features.issubset(worker_features):
