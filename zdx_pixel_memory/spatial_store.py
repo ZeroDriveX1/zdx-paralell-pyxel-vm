@@ -325,6 +325,19 @@ class SpatialPixelStore:
             self._write_unlocked(values, generation)
         return self.path
 
+    def update(self, data: Mapping) -> str:
+        """Commit multiple memory keys in one raster rewrite."""
+        if not isinstance(data, Mapping):
+            raise TypeError("spatial memory update requires a mapping")
+        for key in data:
+            if not isinstance(key, str) or not key:
+                raise ValueError("spatial memory key must be a non-empty string")
+        with self._lock():
+            values, generation = self._read_unlocked()
+            values.update(data)
+            self._write_unlocked(values, generation)
+        return self.path
+
     def read(self, key: str, default=None):
         with self._lock():
             values, _ = self._read_unlocked()
