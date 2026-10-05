@@ -134,12 +134,15 @@ class ZDXServer(_core.ZDXServer):
         try:
             while self.running:
                 message = recv_message(conn)
-                if self.require_auth or message.kind in self._COMPUTE_KINDS or message.kind in self._CLUSTER_KINDS:
+                if self.require_auth or message.kind in self._COMPUTE_KINDS or message.kind in self._CLUSTER_KINDS or message.kind in self._TRUST_KINDS:
                     if self.require_auth and self._queue_pending_enrollment(conn, message, address):
                         return
                     self._authenticate(message)
                 if message.kind in self._CLUSTER_KINDS:
                     self._handle_cluster(conn, message)
+                    continue
+                if message.kind in self._TRUST_KINDS:
+                    self._handle_trust(conn, message)
                     continue
                 if message.kind in self._COMPUTE_KINDS:
                     self._handle_compute(conn, message)
@@ -160,6 +163,7 @@ class ZDXServer(_core.ZDXServer):
                     self._send(conn, ZDXMessage(kind="capability_ack", payload={"accepted": True}))
                 elif message.kind == "heartbeat":
                     self.state.record_heartbeat()
+                    self._queue_long_authenticated_peers()
                     compute = self.compute.status()
                     self._send(conn, ZDXMessage(kind="heartbeat", payload={
                         "status": "alive",
@@ -169,12 +173,17 @@ class ZDXServer(_core.ZDXServer):
                             "completed": len(compute.get("completed", {})),
                             "failed": len(compute.get("failed", {})),
                         },
+                        "rectification": {
+                            "pending": self.rectification.pending_count(),
+                            "reattest_after_seconds": self.reattest_after_seconds,
+                        },
                         "master": self.elected_master,
                         "cluster_id": self.cluster_state.cluster_id,
                     }))
                 else:
                     self._send(conn, ZDXMessage(kind="ack", payload={"received": message.kind}))
         except AuthenticationError as exc:
+            self._observe_authenticated_auth_error(exc)
             try:
                 self._send(conn, ZDXMessage(kind="auth_error", payload={"stage": exc.stage, "reason": exc.reason}))
             except OSError:
