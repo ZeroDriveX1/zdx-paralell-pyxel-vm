@@ -1,5 +1,18 @@
 # ZeroDriveX Release Notes
 
+## Pass 18.0 — Support Mode, Lightweight Re-auth, and Comprehensive Validation
+
+Android policy enforcement now controls compute admission without disconnecting the node from the mesh. Constrained nodes can remain useful in sync/light support mode for authenticated heartbeat, capability refresh, queue/routing visibility, advisory trust-review requests, and lightweight Ed25519 re-attestation.
+
+Rectification is advisory and rate-limited. Authentication-age reviews can be resolved by a one-time short-lived possession proof over a challenge bound to the exact request/node/nonce/expiry. Successful re-attestation resets trust freshness only; suspicious/replay/rate-limit reviews remain pending for separate evidence review.
+
+Distributed compute resource accounting now subtracts RAM and thread reservations from a worker's already-running leases before another claim is admitted. Static and configured safe worker limits also cap the effective budget, preventing repeated-poll overcommit.
+
+A permanent comprehensive release-validation workflow now runs the complete Python suite on Python 3.11/3.12, repeated auth/re-auth/network-fault validation, repeated distributed compute/RAM/lease validation, persistence/power-loss recovery, and Android debug assembly plus lint.
+
+Repository CI validation for this pass was green. This is not a claim of physical-device, multi-host long-duration, or fleet-scale production certification.
+
+
 ## Pass 16.0 — Spatial PNG v1 Integration and Agent-State Hardening
 
 The validated spatial subsystem from the earlier PyxelVM line is integrated into the current hardened parallel runtime without replacing the newer authentication, persistence, distributed-compute, resource-policy, or Android work.
