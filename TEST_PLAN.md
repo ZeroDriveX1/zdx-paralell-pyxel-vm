@@ -83,4 +83,5 @@ The gate intentionally does not substitute for physical Android-device testing, 
 - Verify native mailbox FIFO order, bounded capacity, sequence wrap through ring slots, and SHA-256 tamper detection.
 - Verify mailbox and VM state survive a barrier checkpoint and restart in the same spatial PNG.
 - Verify clean session close persists dirty generations before the normal checkpoint interval.
+- Verify `SpatialFrame.dirty_rectangles` is always defined, bounded, clone-safe, clearable, and coalesces adjacent/overlapping writes.
 - Verify an exact barrier at the same VM generation waits for the newer mailbox/frame snapshot rather than returning on an older generation-only checkpoint.
