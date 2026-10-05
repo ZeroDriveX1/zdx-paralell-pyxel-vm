@@ -113,3 +113,25 @@ carrying optional queue counts and cluster-routing metadata for newer clients.
 This preserves existing node compatibility while allowing the Android console
 to display network workload and routing state.
 
+### Authenticated-node rectification queue
+
+Support-mode trust observation now has a durable advisory queue. The server
+persists first/last successful authenticated activity and can queue active
+identities for freshness review after a configurable trust-age interval
+(default 24 hours). Verified replay-protection and authenticated rate-limit
+failures can also queue review.
+
+Enrolled peers, including Android support nodes, have a signed
+`rectification_request` protocol operation for requesting review of another
+active enrolled peer. Requests are reason-bounded, rate-limited, coalesced,
+and may carry a SHA-256 evidence digest. A request does not alter karma,
+suspend, quarantine, revoke, or otherwise punish its target.
+
+Heartbeat payloads expose the aggregate pending rectification count and
+configured re-attestation interval. Android advertises rectification-request
+support and displays the pending trust-review count in its status/console.
+
+The queue intentionally stops before enforcement. A subsequent challenge /
+re-attestation workflow must resolve queued requests and bind any enforcement
+decision to verified evidence and the existing karma/revocation policy.
+
