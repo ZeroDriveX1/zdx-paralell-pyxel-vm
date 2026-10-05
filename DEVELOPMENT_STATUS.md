@@ -95,3 +95,21 @@ for Android-touching pull requests and uploads the debug APK as a workflow
 artifact. Device-runtime validation is still required for final release
 acceptance.
 
+### Android low-resource support mode
+
+Android mesh participation is now separate from compute admission. A node can
+remain connected while compute is disabled, the phone is active, charging is
+required but absent, memory pressure is high, or the configured reserve blocks
+work.
+
+The node advertises one of four participation modes: sync, light,
+compute-idle-only, or compute. In sync/light mode it still performs
+authenticated identity/capability refresh, heartbeat, availability reporting,
+queue observation, and cluster-routing/master visibility. It does not poll for
+or execute compute work until local policy becomes eligible again.
+
+Heartbeat responses remain backward-compatible as `heartbeat` messages while
+carrying optional queue counts and cluster-routing metadata for newer clients.
+This preserves existing node compatibility while allowing the Android console
+to display network workload and routing state.
+
