@@ -141,6 +141,10 @@ class ZDXAgentMemory:
             raise TypeError(f"Memory key '{key}' is not a list")
         return value
 
+    def encoded_size(self, values: dict) -> int | None:
+        getter = getattr(self._store, "encoded_document_size", None)
+        return getter(values) if callable(getter) else None
+
     def generation(self) -> int | None:
         getter = getattr(self._store, "generation", None)
         return getter() if callable(getter) else None
