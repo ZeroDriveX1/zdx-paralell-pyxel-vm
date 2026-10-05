@@ -15,6 +15,7 @@ thread count is intentionally bounded to ``execution_rows``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import io
 import json
 from typing import Mapping, Optional
 
@@ -22,6 +23,7 @@ import numpy as np
 from PIL import Image
 
 from zdx_parallel_vm import ParallelPyxelVM, SimpleCompiler
+from zdx_storage import atomic_write_bytes
 
 
 _NOP = (0, 0, 0)
@@ -146,6 +148,45 @@ class SpatialLayout:
     def _check_coordinate(self, x: int, y: int) -> None:
         if not (0 <= x < self.width and 0 <= y < self.height):
             raise ValueError(f"coordinate ({x},{y}) outside {self.width}x{self.height} frame")
+
+    @classmethod
+    def from_dict(cls, payload: Mapping) -> "SpatialLayout":
+        """Build and validate a layout from manifest/task metadata."""
+        if not isinstance(payload, Mapping):
+            raise TypeError("spatial layout must be a mapping")
+        allowed = {
+            "width", "height", "execution_rows", "regions",
+            "raw_capacity_bytes", "storage_capacity_bytes",
+        }
+        unknown = set(payload) - allowed
+        if unknown:
+            raise ValueError(f"unknown spatial layout fields: {sorted(unknown)}")
+        try:
+            width = int(payload["width"])
+            height = int(payload["height"])
+            execution_rows = int(payload["execution_rows"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("spatial layout requires integer width, height, and execution_rows") from exc
+        regions = []
+        for raw in payload.get("regions", ()) or ():
+            if not isinstance(raw, Mapping):
+                raise ValueError("spatial region must be a mapping")
+            region_allowed = {"name", "x", "y", "width", "height", "kind", "capacity_bytes"}
+            region_unknown = set(raw) - region_allowed
+            if region_unknown:
+                raise ValueError(f"unknown spatial region fields: {sorted(region_unknown)}")
+            try:
+                regions.append(SpatialRegion(
+                    name=str(raw["name"]),
+                    x=int(raw["x"]),
+                    y=int(raw["y"]),
+                    width=int(raw["width"]),
+                    height=int(raw["height"]),
+                    kind=str(raw.get("kind", "data")),
+                ))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("spatial region has invalid geometry") from exc
+        return cls(width=width, height=height, execution_rows=execution_rows, regions=tuple(regions))
 
     def to_dict(self) -> dict:
         return {
@@ -278,8 +319,15 @@ class SpatialFrame:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError(f"corrupt spatial JSON payload: {exc}") from exc
 
+    def to_png_bytes(self) -> bytes:
+        """Encode the current raster as a standards-valid PNG byte stream."""
+        buffer = io.BytesIO()
+        self.image.save(buffer, format="PNG")
+        return buffer.getvalue()
+
     def save(self, path: str) -> str:
-        self.image.save(path, format="PNG")
+        """Atomically commit the frame, preserving the previous valid generation."""
+        atomic_write_bytes(path, self.to_png_bytes())
         return path
 
 
