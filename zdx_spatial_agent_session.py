@@ -292,6 +292,7 @@ class SpatialAgentSession:
                 )
                 self._dirty = False
                 self._dirty_roles.clear()
+                self.frame.clear_dirty()
             return self.vm.registers
 
     def mailbox(self, role: str, *, slot_size: int = 256) -> SpatialMailbox:
@@ -357,6 +358,7 @@ class SpatialAgentSession:
             )
             self._dirty = False
             self._dirty_roles.clear()
+            self.frame.clear_dirty()
             result = copy.deepcopy(marker)
             result["checkpoint_request_id"] = request_id
             if barrier:
