@@ -135,3 +135,18 @@ The queue intentionally stops before enforcement. A subsequent challenge /
 re-attestation workflow must resolve queued requests and bind any enforcement
 decision to verified evidence and the existing karma/revocation policy.
 
+### Lightweight authenticated re-attestation
+
+The advisory rectification queue now has a low-cost completion path for
+`authentication_age` reviews. Heartbeats can return a two-minute,
+one-time Ed25519 challenge bound to the exact review request, node identity,
+nonce, and integer millisecond timestamps. Android automatically signs that
+challenge with its Keystore-backed enrolled key and returns the proof over the
+already authenticated connection.
+
+Successful proof updates the persisted re-attestation freshness baseline and
+resolves only the matching stale-auth review. Suspicious behavior,
+replay-pattern, and rate-limit-pattern reviews intentionally remain pending.
+No compute lease, artifact download, VM execution, or hidden compute-policy
+override is involved.
+
