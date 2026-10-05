@@ -1,5 +1,16 @@
 # ZeroDriveX Release Notes
 
+## Pass 19.0 — Agent ABI v1, SpatialAgentSession, and Native Mailboxes
+
+The Pyxel-native Agent Module now has a versioned same-frame foundation separate from ZDX AgentCore. `SpatialAgentSession` owns resident spatial execution, VM state activation/recovery, ABI metadata, native mailbox access, dirty-state tracking, and checkpoint lifecycle.
+
+Agent ABI v1 binds semantic roles to distinct named storage regions and pins the binding to the exact canonical `SpatialLayout` hash. Native inbound/outbound mailboxes use bounded binary FIFO rings with monotonic sequence numbers and integrity digests.
+
+Checkpoint barriers now carry monotonic snapshot tickets in addition to VM generation so state-only mutations at the same VM generation cannot cause an exact barrier to return before the requested frozen snapshot is durable. Clean close also forces dirty state durable before shutdown.
+
+This pass is the foundation for subsequent memory namespaces/quotas, capability/tool authorization, replay journaling, and dirty-region tracking.
+
+
 ## Pass 18.0 — Support Mode, Lightweight Re-auth, and Comprehensive Validation
 
 Android policy enforcement now controls compute admission without disconnecting the node from the mesh. Constrained nodes can remain useful in sync/light support mode for authenticated heartbeat, capability refresh, queue/routing visibility, advisory trust-review requests, and lightweight Ed25519 re-attestation.
