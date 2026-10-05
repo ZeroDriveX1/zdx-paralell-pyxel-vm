@@ -216,6 +216,12 @@ class MainActivity : Activity() {
         val lastTaskState = status.getString("last_task_state", null)
         val lastTaskDetail = status.getString("last_task_detail", null)
         val progress = if (status.contains("progress")) status.getInt("progress", 0) else null
+        val nodeMode = status.getString("node_mode", null)
+        val queueQueued = status.getInt("queue_queued", 0)
+        val queueRunning = status.getInt("queue_running", 0)
+        val queueCompleted = status.getInt("queue_completed", 0)
+        val queueFailed = status.getInt("queue_failed", 0)
+        val clusterMaster = status.getString("cluster_master", null)
 
         statusView.text = message
         statusView.setTextColor(
@@ -229,6 +235,7 @@ class MainActivity : Activity() {
         val policyBlock = admission.blockReason(policy, snapshot)
         workView.text = buildString {
             append("State: ").append(state)
+            if (!nodeMode.isNullOrBlank()) append(" · mode: ").append(nodeMode.lowercase())
             if (!currentTask.isNullOrBlank()) append("\nCurrent task: ").append(currentTask)
             if (progress != null) append(" · ").append(progress).append("%")
             if (!lastTask.isNullOrBlank()) {
@@ -242,6 +249,11 @@ class MainActivity : Activity() {
             append(" · free RAM: ").append(snapshot.availableMemoryMb).append(" MB")
             append("\nLimit: ").append(policy.memoryLimitMb).append(" MB compute")
             append(" · preserve ").append(policy.minFreeMemoryMb).append(" MB free")
+            append("\nNetwork queue: ").append(queueQueued).append(" queued · ")
+                .append(queueRunning).append(" running · ")
+                .append(queueCompleted).append(" completed · ")
+                .append(queueFailed).append(" failed")
+            if (!clusterMaster.isNullOrBlank()) append("\nCluster master: ").append(clusterMaster)
         }
 
         capabilityView.text = capabilitySummary(DeviceCapabilityCollector(this).collect())
