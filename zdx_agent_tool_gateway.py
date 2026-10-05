@@ -443,6 +443,18 @@ class AgentToolGateway:
     def _result_key(self, action_hash: str) -> str:
         return self.RESULT_PREFIX + action_hash
 
+    @staticmethod
+    def _validate_persisted_proposal(record, proposal: AgentActionProposal, *, label: str) -> None:
+        if not isinstance(record, Mapping):
+            raise AmbiguousToolOutcomeError(f"persisted {label} record is malformed")
+        persisted = record.get("proposal")
+        if not isinstance(persisted, Mapping):
+            raise AmbiguousToolOutcomeError(f"persisted {label} proposal is malformed")
+        if dict(persisted) != proposal.to_dict():
+            raise AmbiguousToolOutcomeError(
+                f"persisted {label} proposal does not match reconstructed action"
+            )
+
     def execute(
         self,
         *,
@@ -469,13 +481,25 @@ class AgentToolGateway:
         result_key = self._result_key(proposal.action_hash)
         existing_result = self.memory.get("tool_results", result_key)
         if existing_result is not None:
+            self._validate_persisted_proposal(
+                existing_result, proposal, label="tool result"
+            )
+            if existing_result.get("action_hash") != proposal.action_hash:
+                raise AmbiguousToolOutcomeError(
+                    "persisted tool result action hash does not match its key"
+                )
+            if "result" not in existing_result:
+                raise AmbiguousToolOutcomeError("persisted tool result is missing result data")
             return copy.deepcopy(existing_result["result"])
 
         intent_key = self._intent_key(proposal.action_hash)
         existing_intent = self.memory.get("system", intent_key)
         if existing_intent is not None:
+            self._validate_persisted_proposal(
+                existing_intent, proposal, label="tool intent"
+            )
             raise AmbiguousToolOutcomeError(
-                "tool action already has a durable intent without a durable result"
+                "tool action already has a durable intent without a reusable durable result"
             )
 
         rule = self.policy.rule_for(proposal.tool)
