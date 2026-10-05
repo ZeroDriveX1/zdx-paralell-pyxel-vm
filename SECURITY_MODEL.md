@@ -27,13 +27,13 @@ development compatibility and is not a security boundary.
 
 ## Remaining Security Work
 
-- persistent enrollment and revocation storage
-- signed enrollment responses and key-rotation lifecycle
-- capability attestation
-- encrypted transport (TLS/mTLS)
-- workload authorization and quotas
-- artifact distribution and result-size limits
-- independent protocol fuzzing and penetration testing
+The current tree already includes persistent trust/revocation state, TLS/mTLS-capable transport, bounded artifact/result paths, replay/rate-limit admission, and resource-aware leases. Remaining independent hardening includes:
+
+- stronger capability attestation and versioned capability claims;
+- explicit tool/action capability authorization for the Pyxel-native agent module;
+- fleet-scale workload quotas and abuse controls;
+- independent protocol fuzzing/penetration testing beyond the repository fuzz/stress suites;
+- physical-device and multi-host adversarial validation.
 
 The worker does not execute arbitrary Python, shell commands, or user-supplied
 code. Its current workload is a local, hash-verified PNG frame. CPU and memory
@@ -75,3 +75,8 @@ This path requires only an Ed25519 signature and the existing authenticated
 transport. It does not download artifacts, execute Pyxel workloads, consume a
 compute lease, or override local compute policy.
 
+
+
+## Resource-lease integrity
+
+Worker resource admission is cumulative across active leases. The coordinator subtracts RAM and thread reservations for the worker's running tasks and caps new claims against registered static/safe limits. A worker therefore cannot obtain multiple individually-valid leases that collectively exceed its advertised safe budget.
