@@ -84,3 +84,21 @@ The gate intentionally does not substitute for physical Android-device testing, 
 - Verify mailbox and VM state survive a barrier checkpoint and restart in the same spatial PNG.
 - Verify clean session close persists dirty generations before the normal checkpoint interval.
 - Verify an exact barrier at the same VM generation waits for the newer mailbox/frame snapshot rather than returning on an older generation-only checkpoint.
+
+## Agent ABI / resident-session gate
+
+- Validate Agent ABI version and canonical SpatialLayout hash.
+- Reject duplicate semantic roles, duplicate region bindings, execution-plane
+  overlap, and undersized mailbox regions.
+- Verify native mailbox FIFO ordering, bounded-full behavior, sequence
+  monotonicity, and payload-integrity failure on tampering.
+- Verify same-frame agent restart restores VM generation, ABI metadata, and
+  mailbox contents.
+- Verify persisted ABI roles cannot be silently rebound to different regions.
+- Verify clean session close flushes volatile generations before the normal
+  checkpoint interval.
+- Verify same-generation mailbox mutations use an exact checkpoint request
+  barrier rather than returning on an older generation-equivalent snapshot.
+- Verify SpatialFrame dirty rectangles are always defined, bounded, clone-safe,
+  clearable, and conservatively coalesced.
+
