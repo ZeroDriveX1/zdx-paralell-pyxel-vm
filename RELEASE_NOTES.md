@@ -10,7 +10,9 @@ execution fallback.
 A canonical action hash binds the exact tool request, idempotency key, VM
 generation/checkpoint identity, and policy hash. Barrier-required actions write
 and durably checkpoint a pending intent before invoking the handler. Successful
-results are durably recorded afterward. A retry of the same action identity can
+results are durably recorded afterward and the temporary pending intent is
+removed only as part of that final durable state. Ambiguous intents remain
+retained. A retry of the same action identity can
 reuse the recorded result rather than repeat the side effect; incomplete
 outcomes fail closed as ambiguous.
 
