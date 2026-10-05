@@ -194,3 +194,9 @@ SpatialFrame now tracks conservative dirty rectangles and sessions track dirty
 semantic roles. Current durable checkpoints still perform complete PNG
 encoding; dirty metadata is groundwork for future COW/tiled snapshot work.
 
+The capability boundary was further hardened so a gateway cannot authorize on a
+frame lacking provenance. The retained provenance chain is verified before
+authorization, and state-bound action envelopes include the exact capability
+manifest SHA-256 in addition to arguments, VM checkpoint identity, and committed
+PNG identity.
+
