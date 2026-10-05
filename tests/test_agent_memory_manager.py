@@ -188,3 +188,30 @@ def test_usage_reports_encoded_quota_consumption(tmp_path):
     assert usage["max_entries"] >= 1
     assert usage["eviction"] == "reject"
     runtime.close()
+
+
+def test_resident_policy_metadata_mutation_fails_closed(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    manager = runtime.memory_manager(path)
+    session = runtime.open_spatial_session(path)
+
+    session.values[MEMORY_ROOT_KEY]["policies"]["facts"]["max_bytes"] += 1
+
+    with pytest.raises(ValueError, match="modified unexpectedly"):
+        manager.usage("facts")
+
+    runtime.close(flush=False)
+
+
+def test_corrupt_sequence_metadata_fails_closed(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    manager = runtime.memory_manager(path)
+    manager.set("facts", "a", 1)
+    session = runtime.open_spatial_session(path)
+    root = session.values[MEMORY_ROOT_KEY]
+    root["next_sequence"] = 1
+
+    with pytest.raises(ValueError, match="next_sequence"):
+        manager.snapshot("facts")
+
+    runtime.close(flush=False)
