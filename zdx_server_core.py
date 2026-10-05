@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import base64
+import os
 import socket
 import ssl
 import threading
+from pathlib import Path
 from typing import Mapping, Optional
 
 from zdx_artifacts import ContentAddressedBlobStore, MAX_ARTIFACT_BYTES
@@ -13,10 +15,13 @@ from zdx_auth_pipeline import AuthenticationError, ZDXAuthenticationPipeline
 from zdx_compute import ComputeCoordinator, ComputeTask
 from zdx_ed25519_signer import verify_ed25519_signature
 from zdx_network import recv_message, send_message, ZDXMessage, heartbeat
+from zdx_rectification import RectificationQueue
 from zdx_state import ZDXState
 
 
 class ZDXServer:
+    _TRUST_KINDS = {"rectification_request"}
+
     _COMPUTE_KINDS = {
         "compute_register", "compute_submit", "compute_poll", "compute_result",
         "compute_release", "compute_fail", "artifact_put", "artifact_get",
@@ -30,6 +35,8 @@ class ZDXServer:
         artifact_root: str = ".zdx/artifacts",
         tls_context: Optional[ssl.SSLContext] = None,
         allow_shared_paths: bool = False,
+        rectification_path: str | None = None,
+        reattest_after_seconds: float | None = None,
     ):
         self.host = host
         self.port = port
@@ -37,6 +44,15 @@ class ZDXServer:
         self.peers = {}
         self.capabilities = {}
         self.state = ZDXState(state_path)
+        default_rectification_path = str(Path(state_path).with_name("rectification_queue.json"))
+        self.rectification = RectificationQueue(rectification_path or default_rectification_path)
+        configured_reauth = os.environ.get("ZDX_REATTEST_AFTER_SECONDS", "")
+        self.reattest_after_seconds = float(
+            reattest_after_seconds if reattest_after_seconds is not None
+            else configured_reauth or 86400.0
+        )
+        if self.reattest_after_seconds <= 0:
+            raise ValueError("reattest_after_seconds must be positive")
         self.compute = ComputeCoordinator(compute_state_path)
         self.artifacts = ContentAddressedBlobStore(artifact_root)
         self.require_auth = require_auth
@@ -80,6 +96,7 @@ class ZDXServer:
             timestamp=message.timestamp, signature=message.signature,
             payload=message.auth_payload(), sequence=message.sequence,
         )
+        self.state.record_authenticated_peer(message.peer_id, message.timestamp)
 
     def _send(self, conn, message: ZDXMessage) -> None:
         if self.signer is not None:
@@ -101,6 +118,66 @@ class ZDXServer:
         if len(data) > MAX_ARTIFACT_BYTES:
             raise ValueError("artifact exceeds maximum size")
         return task_id, digest, data
+
+    def _rectification_reporter_id(self) -> str:
+        return getattr(self.signer, "node_id", None) or "local-auth-monitor"
+
+    def _queue_long_authenticated_peers(self) -> None:
+        for peer in self.state.long_authenticated_peers(self.reattest_after_seconds):
+            node_id = str(peer["node_id"])
+            if node_id not in self._enrolled_peers or node_id in self._revoked_peers:
+                continue
+            if self.rectification.has_pending(node_id, "authentication_age"):
+                continue
+            self.rectification.request(
+                reporter_node_id=self._rectification_reporter_id(),
+                target_node_id=node_id,
+                reason_code="authentication_age",
+                detail="authenticated trust age exceeded configured re-attestation interval",
+                auth_age_seconds=float(peer["auth_age_seconds"]),
+            )
+
+    def _observe_authenticated_auth_error(self, error: AuthenticationError) -> None:
+        reason_by_stage = {
+            "replay_protection": "replay_pattern",
+            "rate_limit": "rate_limit_pattern",
+        }
+        reason = reason_by_stage.get(error.stage)
+        if (
+            reason is None
+            or not error.peer_id
+            or error.peer_id not in self._enrolled_peers
+            or error.peer_id in self._revoked_peers
+            or self.rectification.has_pending(error.peer_id, reason)
+        ):
+            return
+        self.rectification.request(
+            reporter_node_id=self._rectification_reporter_id(),
+            target_node_id=error.peer_id,
+            reason_code=reason,
+            detail=error.reason,
+        )
+
+    def _handle_trust(self, conn, message: ZDXMessage) -> None:
+        payload = message.payload
+        target = str(payload.get("target_node_id", "")).strip()
+        if not target or target not in self._enrolled_peers or target in self._revoked_peers:
+            raise PermissionError("rectification target must be an active enrolled peer")
+        record = self.rectification.request(
+            reporter_node_id=message.peer_id,
+            target_node_id=target,
+            reason_code=str(payload.get("reason_code", "")),
+            detail=str(payload.get("detail", "")),
+            evidence_digest=str(payload.get("evidence_digest", "")),
+            auth_age_seconds=payload.get("auth_age_seconds"),
+        )
+        self._send(conn, ZDXMessage(kind="rectification_ack", payload={
+            "accepted": True,
+            "request_id": record["request_id"],
+            "target_node_id": record["target_node_id"],
+            "reason_code": record["reason_code"],
+            "status": record["status"],
+        }))
 
     def _handle_compute(self, conn, message: ZDXMessage) -> None:
         payload = message.payload
@@ -151,8 +228,11 @@ class ZDXServer:
         try:
             while self.running:
                 message = recv_message(conn)
-                if self.require_auth or message.kind in self._COMPUTE_KINDS:
+                if self.require_auth or message.kind in self._COMPUTE_KINDS or message.kind in self._TRUST_KINDS:
                     self._authenticate(message)
+                if message.kind in self._TRUST_KINDS:
+                    self._handle_trust(conn, message)
+                    continue
                 if message.kind in self._COMPUTE_KINDS:
                     self._handle_compute(conn, message)
                     continue
@@ -172,6 +252,7 @@ class ZDXServer:
                     self._send(conn, ZDXMessage(kind="capability_ack", payload={"accepted": True}))
                 elif message.kind == "heartbeat":
                     self.state.record_heartbeat()
+                    self._queue_long_authenticated_peers()
                     compute = self.compute.status()
                     self._send(conn, ZDXMessage(kind="heartbeat", payload={
                         "status": "alive",
@@ -181,10 +262,15 @@ class ZDXServer:
                             "completed": len(compute.get("completed", {})),
                             "failed": len(compute.get("failed", {})),
                         },
+                        "rectification": {
+                            "pending": self.rectification.pending_count(),
+                            "reattest_after_seconds": self.reattest_after_seconds,
+                        },
                     }))
                 else:
                     self._send(conn, ZDXMessage(kind="ack", payload={"received": message.kind}))
         except AuthenticationError as exc:
+            self._observe_authenticated_auth_error(exc)
             try:
                 self._send(conn, ZDXMessage(kind="auth_error", payload={"stage": exc.stage, "reason": exc.reason}))
             except OSError:
