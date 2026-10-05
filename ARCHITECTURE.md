@@ -127,3 +127,33 @@ Mapping volatile/working namespaces directly into ABI regions will require a
 resident-region binary codec and will preserve the same single-writer session
 model.
 
+## Pyxel-native capability / tool gateway
+
+The Agent Module now has a fail-closed action boundary separate from node
+hardware capability discovery. `AgentToolGateway` only dispatches handlers
+registered by exact tool name and only after an `AgentToolPolicy` grants the
+exact tool, operation, and optional resource prefix.
+
+Each proposal has a canonical `zdx-agent-action-v1` SHA-256 identity bound to
+the exact action arguments, idempotency key, current VM generation/checkpoint
+hash, and canonical policy hash. Floating-point arguments are currently
+rejected at this security boundary; callers use integer units or canonical
+strings to avoid cross-language number canonicalization ambiguity.
+
+Consequential rules default to an exact durability barrier. The gateway first
+stores a pending intent and makes it durable, then calls the registered handler,
+then stores the result/executed intent and makes that state durable. A retry
+with the same state/action/idempotency key returns the durable prior result
+without re-executing. An intent without a reusable durable result is treated as
+an ambiguous outcome and fails closed.
+
+An optional external authorizer provides the integration point for Axiomatic
+Runtime or another policy service. External decisions must explicitly echo the
+proposal's action hash and policy hash; stale or mismatched decisions are
+denied. `approval_required` is not treated as allow.
+
+The current action hash is VM-generation/checkpoint-bound. Full binding to
+resident mailbox/memory/provenance state is intentionally deferred to the
+event/replay lineage layer rather than pretending the VM register hash covers
+all spatial state.
+
