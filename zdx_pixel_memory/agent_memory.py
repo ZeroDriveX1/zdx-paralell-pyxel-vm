@@ -77,6 +77,19 @@ class ZDXAgentMemory:
     def region(self):
         return getattr(self._store, "region", None)
 
+    def spatial_transaction(self, mutator):
+        """Run one resident transaction against the spatial frame.
+
+        This is available only in spatial mode and is used by the agent runtime
+        to execute and persist same-frame state with one decode/checkpoint.
+        """
+        if not self.spatial:
+            raise RuntimeError("spatial_transaction requires spatial=True")
+        transaction = getattr(self._store, "transaction_frame", None)
+        if not callable(transaction):
+            raise RuntimeError("spatial backend does not support resident transactions")
+        return transaction(mutator)
+
     def remember(self, key: str, value) -> str:
         """Store a value under key and return the containing PNG path."""
         return self._store.write(key, value)
