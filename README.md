@@ -62,3 +62,12 @@ builds require their respective toolchains, signing keys, and (for Android) a
 real device.
 
 MIT License. See [LICENSE](LICENSE).
+
+## Spatial PNG v1
+
+The canonical spatial runtime uses standards-valid RGB PNG frames as executable and state containers. Executable rows use the existing 16-opcode ISA; rows outside the execution plane are addressable data and may host agent memory.
+
+For same-frame agent workflows, the runtime uses a resident transaction path: lock and decode once, execute the in-memory raster, update the declared non-executable memory region, then atomically checkpoint once. Spatial task admission validates geometry, protocol version, worker capabilities, execution-row count, and a conservative raster working-set budget.
+
+See [SPATIAL_PNG.md](SPATIAL_PNG.md) for the machine contract and [ARCHITECTURE.md](ARCHITECTURE.md) for system integration.
+
