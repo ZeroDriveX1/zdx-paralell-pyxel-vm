@@ -1,5 +1,27 @@
 # ZeroDriveX Release Notes
 
+## Pass 20.0 — Namespaced and Quota-aware Pyxel Agent Memory
+
+The Pyxel-native Agent Module now has deterministic logical memory namespaces
+inside the same persistent region owned by `SpatialAgentSession`. Working,
+episodic, facts, tool-results, and system memory can be independently bounded
+by encoded bytes and entry count.
+
+Quota decisions use the actual deterministic binary encoding. A mutation must
+fit both its namespace policy and the complete physical persistent-region
+capacity before resident state is changed. Reject-mode operations are atomic;
+FIFO namespaces evict only their oldest deterministic writes.
+
+The manager does not create another PNG writer. Changes remain resident and are
+made durable through the session's existing checkpoint/barrier lifecycle,
+preserving artifact CAS lineage. Persisted policy metadata and sequence state
+fail closed when corrupted or silently changed.
+
+The optional ABI working_memory region remains reserved for a later
+resident-region codec; this pass establishes the namespace contract without
+creating competing file-level persistence.
+
+
 ## Pass 19.0 — Agent ABI v1, SpatialAgentSession, and Native Mailboxes
 
 The Pyxel-native Agent Module now has a versioned same-frame foundation separate from ZDX AgentCore. `SpatialAgentSession` owns resident spatial execution, VM state activation/recovery, ABI metadata, native mailbox access, dirty-state tracking, and checkpoint lifecycle.
