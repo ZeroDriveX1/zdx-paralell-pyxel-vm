@@ -199,3 +199,40 @@ def test_persisted_agent_abi_cannot_be_silently_rebound(tmp_path):
     with pytest.raises(ValueError, match="persisted agent ABI"):
         runtime2.open_spatial_session(path, abi=changed)
     runtime2.close()
+
+
+def test_clean_close_flushes_generation_before_interval(tmp_path):
+    layout = SpatialLayout(
+        width=48,
+        height=24,
+        execution_rows=1,
+        regions=(SpatialRegion("memory", 0, 1, 48, 23),),
+    )
+    path = str(tmp_path / "close-flush.png")
+    SpatialCompiler(layout).compile([["SET_A 7", "HALT"]], path)
+    memory = ZDXAgentMemory(
+        agent_id="close-flush",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    registry = PyxelRegistry()
+    vm = SpatialPyxelVM(layout=layout)
+    registry.register("vm", vm)
+    registry.register("memory", memory)
+    runtime = ZDXAgentRuntime(registry, checkpoint_interval=10)
+
+    for _ in range(3):
+        runtime.run_spatial(path)
+    assert vm.execution_generation == 3
+    runtime.close(flush=True)
+
+    reopened = ZDXAgentMemory(
+        agent_id="close-flush-reopen",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    assert reopened.snapshot()["vm_checkpoint"]["generation"] == 3
