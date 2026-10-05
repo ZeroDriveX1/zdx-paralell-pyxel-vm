@@ -1,0 +1,204 @@
+import pytest
+
+from pyxel_registry import PyxelRegistry
+from zdx_agent_abi import ROLE_PROVENANCE
+from zdx_agent_capabilities import AgentCapabilityGateway, CapabilityGrant
+from zdx_agent_runtime import ZDXAgentRuntime
+from zdx_pixel_memory import ZDXAgentMemory
+from zdx_spatial_frame import SpatialCompiler, SpatialFrame, SpatialLayout, SpatialPyxelVM, SpatialRegion
+
+
+def _layout():
+    return SpatialLayout(
+        width=96,
+        height=64,
+        execution_rows=1,
+        regions=(
+            SpatialRegion("memory", 0, 1, 96, 30),
+            SpatialRegion("working_memory", 0, 31, 96, 4),
+            SpatialRegion("mailbox_in", 0, 35, 96, 5),
+            SpatialRegion("mailbox_out", 0, 40, 96, 5),
+            SpatialRegion("capabilities", 0, 45, 96, 5),
+            SpatialRegion("provenance", 0, 50, 96, 14),
+        ),
+    )
+
+
+def _session(tmp_path, *, checkpoint_interval=10):
+    layout = _layout()
+    path = str(tmp_path / "agent.png")
+    SpatialCompiler(layout).compile(
+        [["SET_A 2", "SET_B 3", "ADD", "COPY_OUT", "STORE_MEM 0", "HALT"]],
+        path,
+    )
+    memory = ZDXAgentMemory(
+        agent_id="agent",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    registry = PyxelRegistry()
+    registry.register("vm", SpatialPyxelVM(layout=layout))
+    registry.register("memory", memory)
+    runtime = ZDXAgentRuntime(registry, checkpoint_interval=checkpoint_interval)
+    return layout, path, memory, runtime, runtime.open_spatial_session(path)
+
+
+def test_namespaced_memory_enforces_exact_quota_and_fifo_eviction(tmp_path):
+    _layout_value, path, memory, runtime, session = _session(tmp_path)
+    manager = session.memory_manager()
+    manager.configure("working", quota_bytes=360, eviction="fifo")
+
+    saw_eviction = False
+    for index in range(8):
+        result = manager.put("working", f"k{index}", "x" * 80)
+        saw_eviction = saw_eviction or bool(result["evicted"])
+    assert saw_eviction
+    stats = manager.stats("working")
+    assert stats["used_bytes"] <= stats["quota_bytes"]
+    assert manager.get("working", "k7") == "x" * 80
+    assert stats["items"] < 8
+
+    manager.configure("facts", quota_bytes=220, eviction="reject")
+    with pytest.raises(ValueError, match="quota exceeded"):
+        manager.put("facts", "too-large", "y" * 500)
+
+    runtime.close(flush=True)
+
+    reopened = ZDXAgentMemory(
+        agent_id="agent2",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=_layout_value,
+        spatial_region="memory",
+    )
+    registry = PyxelRegistry()
+    registry.register("vm", SpatialPyxelVM(layout=_layout_value))
+    registry.register("memory", reopened)
+    runtime2 = ZDXAgentRuntime(registry)
+    manager2 = runtime2.open_spatial_session(path).memory_manager()
+    assert manager2.get("working", "k7") == "x" * 80
+    assert manager2.stats("working")["used_bytes"] <= 360
+    runtime2.close()
+
+
+def test_provenance_journal_wraps_and_detects_tampering(tmp_path):
+    layout, _path, _memory, runtime, session = _session(tmp_path)
+    journal = session.journal()
+    for index in range(journal.slot_count + 4):
+        journal.append(
+            "test.event",
+            f"payload-{index}".encode(),
+            generation=index,
+        )
+        session.mark_dirty(ROLE_PROVENANCE)
+
+    records = journal.records()
+    assert len(records) == journal.slot_count
+    assert records[-1].payload == f"payload-{journal.slot_count + 3}".encode()
+    assert records[0].sequence == 5
+    assert journal.verify() is True
+
+    region = layout.region("provenance")
+    raw = bytearray(session.frame.read_bytes(region.capacity_bytes, region="provenance"))
+    needle = records[-1].payload
+    offset = raw.find(needle)
+    assert offset > 0
+    raw[offset] ^= 0x01
+    session.frame.write_bytes(raw, region="provenance")
+    with pytest.raises(ValueError, match="digest mismatch"):
+        journal.records()
+    runtime.close(flush=False)
+
+
+def test_session_automatically_journals_execution_and_mailbox_activity(tmp_path):
+    _layout_value, path, _memory, runtime, session = _session(tmp_path)
+    session.send(
+        b"dispatch",
+        sender="planner",
+        recipient="worker",
+        topic="task",
+    )
+    runtime.run_spatial(path)
+
+    events = [record.event_type for record in session.journal().records()]
+    assert "mailbox.send" in events
+    assert "vm.execute" in events
+    runtime.close()
+
+
+def test_capability_gateway_is_default_deny_and_state_bound(tmp_path):
+    _layout_value, path, _memory, runtime, session = _session(tmp_path)
+    gateway = AgentCapabilityGateway([
+        CapabilityGrant("filesystem", ("file.read",)),
+        CapabilityGrant("network", ("http.get",), approval_required=True),
+    ])
+    manifest = session.install_capability_gateway(gateway)
+    assert len(manifest) == 64
+    assert gateway.verify_installed(session)
+
+    denied = session.decide_action(
+        capability="filesystem",
+        action="file.delete",
+        arguments={"path": "/tmp/x"},
+    )
+    assert denied.status == "deny"
+    assert denied.allowed is False
+    assert denied.envelope is None
+
+    allowed = session.decide_action(
+        capability="filesystem",
+        action="file.read",
+        arguments={"path": "/safe/input"},
+    )
+    assert allowed.status == "allow"
+    assert allowed.allowed is True
+    assert len(allowed.action_hash) == 64
+    assert len(allowed.envelope.artifact_sha256) == 64
+    assert len(allowed.decision_artifact_sha256) == 64
+
+    approval = session.decide_action(
+        capability="network",
+        action="http.get",
+        arguments={"url": "https://example.invalid/data"},
+    )
+    assert approval.status == "approval_required"
+    assert approval.allowed is False
+
+    runtime.run_spatial(path)
+    later = session.decide_action(
+        capability="filesystem",
+        action="file.read",
+        arguments={"path": "/safe/input"},
+    )
+    assert later.action_hash != allowed.action_hash
+
+    event_types = [record.event_type for record in session.journal().records()]
+    assert "capability.allow" in event_types
+    assert "capability.approval_required" in event_types
+    runtime.close()
+
+
+def test_capability_table_tamper_fails_closed(tmp_path):
+    layout, _path, _memory, runtime, session = _session(tmp_path)
+    gateway = AgentCapabilityGateway([
+        CapabilityGrant("filesystem", ("file.read",)),
+    ])
+    session.install_capability_gateway(gateway)
+
+    region = layout.region("capabilities")
+    raw = bytearray(session.frame.read_bytes(region.capacity_bytes, region="capabilities"))
+    index = next(i for i, value in enumerate(raw) if value != 0)
+    raw[index] ^= 0x01
+    session.frame.write_bytes(raw, region="capabilities")
+    session.mark_dirty("capabilities")
+
+    decision = session.decide_action(
+        capability="filesystem",
+        action="file.read",
+        arguments={"path": "/safe/input"},
+    )
+    assert decision.status == "deny"
+    assert "verification failed" in decision.reason
+    runtime.close(flush=False)
