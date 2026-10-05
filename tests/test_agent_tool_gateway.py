@@ -112,8 +112,9 @@ def test_tool_gateway_persists_intent_before_handler_and_result_after(tmp_path):
         arguments={"value": 7},
         idempotency_key="request-1",
     )
-    assert persisted_system[f"tool-intent/{proposal.action_hash}"]["status"] == "executed"
+    assert f"tool-intent/{proposal.action_hash}" not in persisted_system
     assert persisted_results[f"tool-result/{proposal.action_hash}"]["result"] == result
+    assert persisted_results[f"tool-result/{proposal.action_hash}"]["decision"]["decision"] == "allow"
     runtime.close()
 
 
@@ -473,4 +474,36 @@ def test_action_hash_is_stable_across_argument_key_order(tmp_path):
     )
 
     assert left.action_hash == right.action_hash
+    runtime.close()
+
+
+def test_forged_or_stale_public_proposal_is_rejected(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    tools = ToolRegistry()
+    tools.register("store", lambda proposal: {"ok": True})
+    gateway = runtime.tool_gateway(path, registry=tools, policy=_policy())
+
+    proposal = gateway.propose(
+        tool="store", operation="write",
+        resource="store://safe/a", idempotency_key="forged",
+    )
+    forged = type(proposal)(
+        tool=proposal.tool,
+        operation=proposal.operation,
+        resource=proposal.resource,
+        arguments=proposal.arguments,
+        idempotency_key=proposal.idempotency_key,
+        generation=proposal.generation,
+        checkpoint_hash=proposal.checkpoint_hash,
+        policy_hash=proposal.policy_hash,
+        action_hash="0" * 64,
+    )
+
+    with pytest.raises(ToolAuthorizationError, match="action hash is invalid"):
+        gateway.authorize(forged)
+
+    runtime.run_spatial(path)
+    with pytest.raises(ToolAuthorizationError, match="generation is stale"):
+        gateway.authorize(proposal)
+
     runtime.close()
