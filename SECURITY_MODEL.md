@@ -18,6 +18,8 @@ Current protections:
 - verified frame SHA-256 before execution
 - bounded task memory reservations and persistent leases
 - disabled-by-default worker policy with idle and production-guard checks
+- durable advisory rectification/re-attestation queue for authenticated peers
+- replay/rate-limit patterns can request review without directly changing karma
 
 Authenticated transport is enabled with `ZDXServer(require_auth=True)` and a
 trusted public-key mapping. The default unsigned server mode exists for local
@@ -39,3 +41,18 @@ limits must be enforced by both the JSON policy and the host service manager;
 the policy alone cannot provide a hard CPU quota on every operating system.
 
 Security decisions remain modular so deployments can choose appropriate trust levels.
+
+## Rectification / re-attestation boundary
+
+Rectification means revalidation of an already enrolled identity. It is not a
+revocation, suspension, or negative-karma event. Authenticated peers may submit
+signed review requests for active enrolled nodes; requests are bounded,
+rate-limited, and coalesced. The local authentication monitor may also queue a
+request after a verified replay/rate-limit pattern or when an actively used
+identity exceeds the configured trust-age interval.
+
+The default trust-age interval is 24 hours and can be changed with
+`ZDX_REATTEST_AFTER_SECONDS` or the server constructor. This is a freshness
+trigger, not evidence of misconduct. Actual challenge/attestation resolution,
+karma changes, quarantine, suspension, and revocation remain separate policy
+steps and require verified evidence.
