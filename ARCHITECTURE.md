@@ -72,3 +72,23 @@ Each durable checkpoint records two identities:
 
 The checkpoint worker independently recomputes the VM hash from the frozen snapshot before commit. Checkpoint commits use artifact compare-and-swap protection so an external frame mutation cannot be overwritten silently. On restart, the runtime verifies and restores the last durable generation before continuing.
 
+
+
+## Support-mode trust and lightweight re-attestation
+
+Node connectivity and compute admission are separate concerns. A node whose local resource policy blocks Pyxel execution may remain connected in sync/light support mode. It can refresh capabilities, report availability, observe queue/routing state, submit bounded rectification requests, and answer short-lived re-attestation challenges. None of those operations grant a compute lease or override local resource policy.
+
+Rectification is advisory. Long-lived authentication, verified replay patterns, or authenticated rate-limit anomalies may queue a review, but review state does not directly alter karma, quarantine, suspension, or revocation. Authentication-age reviews can be resolved by a one-time Ed25519 possession proof bound to the exact request ID, node ID, random nonce, and expiry.
+
+## Lease-level resource accounting
+
+Distributed RAM/CPU admission is reservation-based rather than per-poll. A worker's effective claim budget is bounded by its reported availability, registered static capability, configured safe limit, and resources already reserved by that worker's running leases. This prevents repeated polling from overcommitting the same RAM or execution threads.
+
+## Next agent-module architecture
+
+The next core layer is intentionally separate from ZDX AgentCore:
+
+- `SpatialAgentSession`: owns one resident frame, VM generation, checkpoint manager, lifecycle, and recovery.
+- Agent ABI v1: versioned region-role contract for execution, mailboxes, working/persistent memory, capabilities, and provenance.
+- Native spatial mailboxes: bounded in-raster message queues with sequence/integrity metadata.
+- Later layers build on those contracts: memory namespaces/quotas, capability/tool gateway, replay journal, and dirty-region tracking.
