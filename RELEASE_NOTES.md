@@ -1,5 +1,20 @@
 # ZeroDriveX Release Notes
 
+## Pass 16.0 — Spatial PNG v1 Integration and Agent-State Hardening
+
+The validated spatial subsystem from the earlier PyxelVM line is integrated into the current hardened parallel runtime without replacing the newer authentication, persistence, distributed-compute, resource-policy, or Android work.
+
+The canonical machine contract is a standards-valid RGB PNG whose decoded raster is the machine representation. X/Y provide deterministic cell addressing; R is the opcode dispatch byte in executable rows; G/B are operands or data; declared storage rows remain non-executable. The existing 16-opcode ISA is unchanged.
+
+Agent memory can bind to a named non-executable region of the same spatial PNG. Same-frame agent execution now has a resident transaction path: one locked PNG decode, resident VM execution, deterministic binary memory update, and one atomic checkpoint. This avoids repeated PNG decode/recompression inside the agent state transition while preserving PNG as the durable executable/state container.
+
+Hardening in this pass includes strict RGB-PNG acceptance, canonical layout/version validation, derived-capacity checks, bounded total cell count, spatial compute admission tied to execution-row count and task memory budget, and fail-closed recovery that will not restore a stale backup when its executable plane differs.
+
+Spatial artifacts remain content-addressed by the SHA-256 of the exact PNG bytes. A memory/state checkpoint therefore creates a new frame identity; manifests describe a specific immutable generation and must be regenerated after an intentional state mutation.
+
+Performance claims remain benchmark-dependent. PNG compression is a checkpoint/storage mechanism, not the source of execution acceleration. The intended hot path is the resident decoded raster; persistent PNG encoding occurs at explicit transaction/checkpoint boundaries.
+
+
 ## Pass 13.0 — Production Validation and Operational Hardening
 
 This pass adds validation tooling rather than a new runtime subsystem: lightweight metrics, deterministic failure injection, bounded/duration soak execution, persistence stress, fuzz campaigns, and machine-readable benchmarks.
