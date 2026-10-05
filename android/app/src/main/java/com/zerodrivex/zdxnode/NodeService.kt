@@ -72,6 +72,7 @@ class NodeService : Service() {
             serviceActive.set(false)
             handler.removeCallbacks(monitor)
             transport?.close()
+            if (::workEvents.isInitialized) workEvents.append("SERVICE", "background node service stopped by user")
             stopSelfResult(startId)
             return START_NOT_STICKY
         }
@@ -168,10 +169,21 @@ class NodeService : Service() {
                     }
                 }
             )
+            val executionPolicy = policyStore.load()
+            val executionBlock = admission.blockReason(executionPolicy)
+            if (executionBlock != null || memoryMb > executionPolicy.memoryLimitMb) {
+                val reason = executionBlock
+                    ?: "task requests $memoryMb MB above current ${executionPolicy.memoryLimitMb} MB limit"
+                artifact.delete()
+                nodeTransport.release(taskId, "Android resource policy changed before execution: $reason", leaseId)
+                recordWork("RELEASED", "policy changed before execution: $reason", taskId, "outgoing")
+                updateStatus(true, "task released: $reason", workState = "RELEASED", taskId = taskId, terminal = true)
+                return
+            }
             updateStatus(true, "running $taskId", workState = "RUNNING", taskId = taskId, progress = 100)
             recordWork("RUNNING", "artifact verified; adapter execution started", taskId)
             val startedAt = System.currentTimeMillis()
-            val result = taskExecutor.execute(task, artifact, policyStore.load())
+            val result = taskExecutor.execute(task, artifact, executionPolicy)
             val elapsed = System.currentTimeMillis() - startedAt
             recordWork("OUTGOING", "sending result after ${elapsed}ms compute", taskId, "outgoing")
             nodeTransport.complete(taskId, AndroidResultAttestor(this).attest(result), leaseId)
