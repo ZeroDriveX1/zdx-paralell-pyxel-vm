@@ -1,7 +1,9 @@
 # ZDX Pyxel
 
 ZDX Pyxel is a deterministic pixel-native VM with a private, opt-in
-distributed compute fabric. Karmic/gravitational election remains the source
+distributed compute fabric. The runtime supports the spatial PNG v1 machine
+model, where executable rows and non-executable addressable state regions can
+share one standards-valid RGB PNG. Karmic/gravitational election remains the source
 of cluster leadership; there is no fixed coordinator. Each cluster is capped
 at 100 nodes and nodes may belong to multiple clusters.
 
