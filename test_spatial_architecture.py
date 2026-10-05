@@ -397,3 +397,97 @@ def test_same_frame_backup_recovery_never_rolls_back_executable_plane(tmp_path):
 
     assert not os.path.exists(path)
     assert list(tmp_path.glob("rollback-guard.png.corrupt.*"))
+
+
+def test_async_checkpoint_every_ten_executions_and_hash_lineage(tmp_path):
+    layout = SpatialLayout(
+        width=64,
+        height=32,
+        execution_rows=1,
+        regions=(SpatialRegion("memory", 0, 1, 64, 31),),
+    )
+    path = str(tmp_path / "async-agent.png")
+    SpatialCompiler(layout).compile(
+        [["SET_A 12", "SET_B 5", "ADD", "COPY_OUT", "STORE_MEM 0", "HALT"]],
+        path,
+    )
+    initial_bytes = open(path, "rb").read()
+
+    memory = ZDXAgentMemory(
+        agent_id="async",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    registry = PyxelRegistry()
+    vm = SpatialPyxelVM(layout=layout)
+    registry.register("vm", vm)
+    registry.register("memory", memory)
+    runtime = ZDXAgentRuntime(registry, checkpoint_interval=10)
+
+    for _ in range(9):
+        runtime.run_spatial(path)
+    assert vm.execution_generation == 9
+    assert open(path, "rb").read() == initial_bytes
+
+    runtime.run_spatial(path)
+    assert vm.execution_generation == 10
+    assert runtime._spatial_sessions[os.path.abspath(path)]["manager"].wait_for(10, timeout=5.0)
+    assert open(path, "rb").read() != initial_bytes
+
+    persisted = memory.snapshot()
+    marker = persisted["vm_checkpoint"]
+    assert marker["generation"] == 10
+    assert marker["checkpoint_hash"] == vm.last_checkpoint_hash
+
+    runtime.close()
+    restarted_registry = PyxelRegistry()
+    restarted_vm = SpatialPyxelVM(layout=layout)
+    restarted_memory = ZDXAgentMemory(
+        agent_id="async-restart",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    restarted_registry.register("vm", restarted_vm)
+    restarted_registry.register("memory", restarted_memory)
+    restarted = ZDXAgentRuntime(restarted_registry, checkpoint_interval=10)
+    restarted.run_spatial(path)
+    assert restarted_vm.execution_generation == 11
+    restarted.close()
+
+
+def test_barrier_checkpoint_persists_before_interval(tmp_path):
+    layout = SpatialLayout(
+        width=32,
+        height=16,
+        execution_rows=1,
+        regions=(SpatialRegion("memory", 0, 1, 32, 15),),
+    )
+    path = str(tmp_path / "barrier-agent.png")
+    SpatialCompiler(layout).compile([["SET_A 3", "HALT"]], path)
+    initial = open(path, "rb").read()
+
+    memory = ZDXAgentMemory(
+        agent_id="barrier",
+        spatial=True,
+        spatial_path=path,
+        spatial_layout=layout,
+        spatial_region="memory",
+    )
+    registry = PyxelRegistry()
+    vm = SpatialPyxelVM(layout=layout)
+    registry.register("vm", vm)
+    registry.register("memory", memory)
+    runtime = ZDXAgentRuntime(registry, checkpoint_interval=10)
+
+    for _ in range(3):
+        runtime.run_spatial(path)
+    assert open(path, "rb").read() == initial
+    marker = runtime.checkpoint(path, barrier=True)
+    assert marker["generation"] == 3
+    assert memory.snapshot()["vm_checkpoint"]["generation"] == 3
+    assert open(path, "rb").read() != initial
+    runtime.close()
