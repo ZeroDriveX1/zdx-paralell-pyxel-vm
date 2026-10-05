@@ -23,6 +23,7 @@ except ImportError:
     Ed25519PublicKey = None
 from zdx_storage import StateStore
 from zdx_metrics import METRICS
+from zdx_spatial_frame import SPATIAL_FRAME_VERSION, SpatialLayout
 
 PROTOCOL_VERSION = 1
 MAX_MESSAGE_SIZE = 16 * 1024 * 1024
@@ -506,9 +507,9 @@ def _normalize_spatial_layout(layout):
     if layout is None:
         return None
     if hasattr(layout, "to_dict"):
-        return layout.to_dict()
+        layout = layout.to_dict()
     if isinstance(layout, dict):
-        return dict(layout)
+        return SpatialLayout.from_dict(layout).to_dict()
     raise TypeError("spatial_layout must be a dict, expose to_dict(), or be None")
 
 
@@ -521,6 +522,6 @@ def frame_announce(path: str, sha256: str, *, spatial_layout=None, **kwargs) -> 
         "execution_model": "spatial-png" if layout is not None else "pixel-frame",
     }
     if layout is not None:
-        payload["spatial_version"] = 1
+        payload["spatial_version"] = SPATIAL_FRAME_VERSION
         payload["spatial_layout"] = layout
     return ZDXMessage(kind="frame", payload=payload, **kwargs)
