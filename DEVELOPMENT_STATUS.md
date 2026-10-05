@@ -190,3 +190,23 @@ not yet map working memory directly into the optional ABI working_memory
 region. A resident-region codec can add that later without changing the public
 namespace contract.
 
+## Agent capability/tool gateway pass 21.0
+
+Implemented on the Pyxel-native Agent Module feature branch:
+
+- exact-name tool registry with no shell/path fallback;
+- versioned canonical tool capability policy and SHA-256 policy identity;
+- canonical state/action proposal hashing with explicit idempotency keys;
+- VM generation/checkpoint binding;
+- exact tool/operation/resource-prefix authorization;
+- optional externally bound Axiomatic/policy authorizer interface;
+- durable pre-action intent and post-action result barriers;
+- idempotent durable-result replay without repeated side effects;
+- fail-closed ambiguous-outcome handling;
+- non-evicting safety-state requirement for intent/result records;
+- restart policy binding and persisted-record validation.
+
+This pass does not yet claim that the action hash covers every resident
+mailbox/memory byte. The next provenance/replay pass will add broader event and
+resident-state lineage.
+
