@@ -201,6 +201,12 @@ class SpatialAgentMemoryManager:
     def _root(self) -> dict:
         root = self.session.values.get(MEMORY_ROOT_KEY)
         self._validate_root(root)
+        persisted = {
+            name: MemoryNamespacePolicy.from_dict(name, raw)
+            for name, raw in root["policies"].items()
+        }
+        if self._policy_payload(persisted) != self._policy_payload(self._policies):
+            raise ValueError("resident memory namespace policies were modified unexpectedly")
         return root
 
     def _namespace_encoded_size(self, root: dict, namespace: str) -> int:
