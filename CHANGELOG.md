@@ -343,3 +343,14 @@ All code follows these standards:
 - Added dirty-session tracking so clean flush/close persists state even before the normal 10-execution checkpoint interval.
 - Added checkpoint request tickets so exact barriers wait for the requested frozen snapshot even when multiple states share one VM generation.
 - Added tests for ABI rebinding rejection, mailbox FIFO/full/wrap/tamper behavior, restart persistence, clean-close durability, and same-generation exact barriers.
+
+## [Unreleased] - Pyxel-native Agent Session / ABI / Mailboxes
+
+- Added `SpatialAgentSession` as the lifecycle owner for resident same-frame agents.
+- Added Agent ABI v1 with layout-hash binding and semantic region roles.
+- Added native bounded binary spatial mailboxes with monotonic sequences and SHA-256 integrity.
+- Persisted Agent ABI metadata and reject silent region-role rebinding after restart.
+- Added exact checkpoint request IDs so same-generation barrier checkpoints wait for the intended snapshot.
+- Added `SpatialFrame.dirty_rectangles` mutation tracking with bounded/coalesced rectangles.
+- Added regression coverage for session restart, mailbox persistence/tampering/full queues, ABI validation, close flushing, same-generation barriers, and dirty-rectangle tracking.
+
