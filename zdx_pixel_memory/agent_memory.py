@@ -1,104 +1,117 @@
-"""
-agent_memory.py — High-level memory interface for ZerodriveX AI agents.
+"""High-level memory interface for ZDX agents.
 
-Usage
------
-    from zdx_pixel_memory import ZDXAgentMemory
-
-    mem = ZDXAgentMemory(agent_id="agent_01")
-    mem.remember("user_name", "Zara")
-    mem.remember("task_history", ["search docs", "draft reply"])
-
-    name = mem.recall("user_name")          # "Zara"
-    ctx  = mem.snapshot()                   # full dict, ready to inject into prompt
-    mem.forget("task_history")
+The compatibility backend stores one PNG per key. Spatial mode stores the
+agent's complete deterministic typed memory map inside one spatial PNG region
+and may be bound to a named region in the same frame that carries executable
+PyxelVM rows.
 """
 
+from __future__ import annotations
+
+from pathlib import Path
+import re
+
+from .spatial_store import SpatialPixelStore
 from .store import PixelStore
 
 
+_SAFE_AGENT_ID = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
+
+
 class ZDXAgentMemory:
-    """
-    Pixel-backed memory for a single ZerodriveX agent instance.
+    """Pixel-backed memory for one ZDX agent instance."""
 
-    All values are stored as PNG files — no plain-text files on disk.
-    Any JSON-serializable value (str, int, float, list, dict, bool, None)
-    can be stored.
-
-    Parameters
-    ----------
-    agent_id : str
-        Unique identifier for the agent.  Used as the store sub-directory.
-    base_dir : str
-        Root directory for all agent memory stores.
-    """
-
-    def __init__(self, agent_id: str = "default", base_dir: str = "zdx_memory/"):
+    def __init__(
+        self,
+        agent_id: str = "default",
+        base_dir: str = "zdx_memory/",
+        *,
+        spatial: bool = False,
+        spatial_width: int = 256,
+        spatial_height: int = 256,
+        spatial_execution_rows: int = 0,
+        spatial_path: str | None = None,
+        spatial_layout=None,
+        spatial_region: str | None = None,
+    ):
+        if not isinstance(agent_id, str) or not _SAFE_AGENT_ID.fullmatch(agent_id):
+            raise ValueError("agent_id must contain only letters, digits, '.', '_' or '-'")
+        if agent_id in {".", ".."}:
+            raise ValueError("agent_id cannot be a traversal component")
         self.agent_id = agent_id
-        self._store = PixelStore(store_dir=f"{base_dir}{agent_id}/")
+        self.spatial = bool(spatial)
 
-    # ------------------------------------------------------------------
-    # Core memory operations
-    # ------------------------------------------------------------------
+        if self.spatial:
+            agent_dir = Path(base_dir) / agent_id
+            path = spatial_path or str(agent_dir / "memory.spatial.png")
+            self._store = SpatialPixelStore(
+                path=path,
+                layout=spatial_layout,
+                width=spatial_width,
+                height=spatial_height,
+                execution_rows=spatial_execution_rows,
+                region=spatial_region,
+            )
+        else:
+            if spatial_path is not None or spatial_layout is not None or spatial_region is not None:
+                raise ValueError("spatial_path/layout/region require spatial=True")
+            self._store = PixelStore(store_dir=str(Path(base_dir) / agent_id))
+
+    @property
+    def is_spatial(self) -> bool:
+        return self.spatial
+
+    @property
+    def capacity_bytes(self):
+        return getattr(self._store, "capacity_bytes", None)
+
+    @property
+    def frame_path(self) -> str | None:
+        return getattr(self._store, "frame_path", None)
+
+    @property
+    def layout(self):
+        return getattr(self._store, "layout", None)
+
+    @property
+    def region(self):
+        return getattr(self._store, "region", None)
 
     def remember(self, key: str, value) -> str:
-        """
-        Store *value* under *key*.  Overwrites any existing value.
-        Returns the path to the saved PNG.
-        """
-        path = self._store.write(key, value)
-        return path
+        """Store a value under key and return the containing PNG path."""
+        return self._store.write(key, value)
 
     def recall(self, key: str, default=None):
-        """
-        Retrieve the value stored under *key*.
-        Returns *default* if the key does not exist.
-        """
         return self._store.read(key, default=default)
 
     def forget(self, key: str) -> bool:
-        """
-        Remove *key* from memory.  Returns True if it existed.
-        """
         return self._store.delete(key)
 
     def exists(self, key: str) -> bool:
         return self._store.exists(key)
 
-    # ------------------------------------------------------------------
-    # Bulk / context helpers
-    # ------------------------------------------------------------------
-
     def keys(self) -> list:
-        """Return all keys currently in memory."""
         return self._store.keys()
 
     def snapshot(self) -> dict:
-        """
-        Return every memory entry as a plain dict.
-        Use this to inject the full memory context into an LLM prompt.
-        """
+        """Decode the memory map at an external reasoning/API boundary."""
         return self._store.all()
 
     def update(self, data: dict):
-        """Write multiple key/value pairs at once."""
+        if not isinstance(data, dict):
+            raise TypeError("memory update requires a dictionary")
         for key, value in data.items():
             self._store.write(key, value)
 
     def clear(self):
-        """Erase all memories for this agent."""
+        clear = getattr(self._store, "clear", None)
+        if callable(clear):
+            clear()
+            return
         for key in self._store.keys():
             self._store.delete(key)
 
-    # ------------------------------------------------------------------
-    # List helpers — for append-style memory (e.g. conversation turns)
-    # ------------------------------------------------------------------
-
     def append(self, key: str, item):
-        """
-        Append *item* to the list stored at *key*.
-        Creates the list if it does not yet exist.
-        """
         current = self._store.read(key, default=[])
         if not isinstance(current, list):
             raise TypeError(f"Memory key '{key}' is not a list")
@@ -106,16 +119,15 @@ class ZDXAgentMemory:
         self._store.write(key, current)
 
     def recall_list(self, key: str) -> list:
-        """Return the list at *key*, or [] if not found."""
         value = self._store.read(key, default=[])
         if not isinstance(value, list):
             raise TypeError(f"Memory key '{key}' is not a list")
         return value
 
-    # ------------------------------------------------------------------
-    # Repr
-    # ------------------------------------------------------------------
+    def generation(self) -> int | None:
+        getter = getattr(self._store, "generation", None)
+        return getter() if callable(getter) else None
 
     def __repr__(self) -> str:
-        keys = self._store.keys()
-        return f"ZDXAgentMemory(agent_id={self.agent_id!r}, keys={keys})"
+        mode = "spatial" if self.spatial else "pixel"
+        return f"ZDXAgentMemory(agent_id={self.agent_id!r}, mode={mode!r}, keys={self.keys()})"
