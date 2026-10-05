@@ -208,10 +208,42 @@ class MainActivity : Activity() {
 
     private fun refreshStatus() {
         if (!::statusView.isInitialized) return
-        val message = getSharedPreferences("zdx_status", MODE_PRIVATE).getString("message", "not started") ?: "not started"
+        val status = getSharedPreferences("zdx_status", MODE_PRIVATE)
+        val message = status.getString("message", "not started") ?: "not started"
+        val state = status.getString("work_state", "STOPPED") ?: "STOPPED"
+        val currentTask = status.getString("current_task_id", null)
+        val lastTask = status.getString("last_task_id", null)
+        val lastTaskState = status.getString("last_task_state", null)
+        val progress = if (status.contains("progress")) status.getInt("progress", 0) else null
+
         statusView.text = message
-        statusView.setTextColor(if (message.startsWith("connected") || message.startsWith("completed")) Color.rgb(22, 101, 52) else Color.rgb(55, 65, 81))
+        statusView.setTextColor(
+            if (state in setOf("CONNECTED", "IDLE", "RUNNING", "COMPLETED")) Color.rgb(22, 101, 52)
+            else Color.rgb(55, 65, 81)
+        )
+
+        val policy = ResourcePolicyStore(this).load()
+        val admission = AndroidResourceAdmission(this)
+        val snapshot = admission.snapshot()
+        val policyBlock = admission.blockReason(policy, snapshot)
+        workView.text = buildString {
+            append("State: ").append(state)
+            if (!currentTask.isNullOrBlank()) append("\nCurrent task: ").append(currentTask)
+            if (progress != null) append(" · ").append(progress).append("%")
+            if (!lastTask.isNullOrBlank()) {
+                append("\nLast task: ").append(lastTask)
+                if (!lastTaskState.isNullOrBlank()) append(" · ").append(lastTaskState)
+            }
+            append("\nPolicy: ").append(if (policyBlock == null) "eligible" else "paused · $policyBlock")
+            append("\nIdle: ").append(if (snapshot.userIdle) "yes" else "no")
+            append(" · charging: ").append(if (snapshot.charging) "yes" else "no")
+            append(" · free RAM: ").append(snapshot.availableMemoryMb).append(" MB")
+            append("\nLimit: ").append(policy.memoryLimitMb).append(" MB compute")
+            append(" · preserve ").append(policy.minFreeMemoryMb).append(" MB free")
+        }
+
         capabilityView.text = capabilitySummary(DeviceCapabilityCollector(this).collect())
+        consoleView.text = WorkEventStore(this).consoleText(80)
     }
 
     private fun setLocalStatus(message: String) {
