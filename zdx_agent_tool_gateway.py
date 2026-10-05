@@ -43,6 +43,8 @@ class ToolCapabilityRule:
     def __post_init__(self) -> None:
         if not isinstance(self.tool, str) or not _NAME.fullmatch(self.tool):
             raise ValueError("tool capability name is invalid")
+        if not isinstance(self.operations, tuple) or not isinstance(self.resource_prefixes, tuple):
+            raise TypeError("tool capability operations and resource_prefixes must be tuples")
         if not self.operations or any(
             not isinstance(op, str) or not _NAME.fullmatch(op)
             for op in self.operations
@@ -93,6 +95,8 @@ class AgentToolPolicy:
     version: int = TOOL_POLICY_VERSION
 
     def __post_init__(self) -> None:
+        if not isinstance(self.rules, tuple):
+            raise TypeError("tool policy rules must be a tuple")
         if self.version != TOOL_POLICY_VERSION:
             raise ValueError(
                 f"unsupported tool policy version {self.version}; expected {TOOL_POLICY_VERSION}"
