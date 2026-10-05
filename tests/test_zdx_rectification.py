@@ -1,6 +1,9 @@
 import time
 
+import pytest
+
 from zdx_auth_pipeline import AuthenticationError
+from zdx_network import ZDXMessage
 from zdx_rectification import RectificationQueue
 from zdx_server_core import ZDXServer
 from zdx_state import ZDXState
@@ -85,3 +88,31 @@ def test_verified_replay_pattern_queues_review_without_revoking(tmp_path):
     assert pending[0]["reason_code"] == "replay_pattern"
     assert "peer-a" in server._enrolled_peers
     assert "peer-a" not in server._revoked_peers
+
+
+def test_peer_cannot_fabricate_authentication_age(tmp_path):
+    server = ZDXServer(
+        trusted_peers={"observer": "placeholder", "peer-a": "placeholder"},
+        state_path=str(tmp_path / "state.json"),
+        compute_state_path=str(tmp_path / "compute.json"),
+        artifact_root=str(tmp_path / "artifacts"),
+        rectification_path=str(tmp_path / "rectification.json"),
+        reattest_after_seconds=3600,
+    )
+    now = time.time()
+    server.state.record_authenticated_peer("peer-a", now)
+
+    message = ZDXMessage(
+        kind="rectification_request",
+        peer_id="observer",
+        payload={
+            "target_node_id": "peer-a",
+            "reason_code": "authentication_age",
+            "auth_age_seconds": 999999,
+        },
+    )
+
+    with pytest.raises(PermissionError, match="not due"):
+        server._handle_trust(object(), message)
+
+    assert server.rectification.pending_count() == 0
