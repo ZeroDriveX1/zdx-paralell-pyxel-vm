@@ -54,8 +54,28 @@ class AgentMemoryManager:
                 raise ValueError("agent memory namespace quota must be positive")
             if record.get("eviction") not in _EVICTION:
                 raise ValueError("unsupported agent memory eviction policy")
-            if not isinstance(record.get("items"), dict) or not isinstance(record.get("order"), list):
+            allowed_fields = {"quota_bytes", "eviction", "items", "order"}
+            unknown = set(record) - allowed_fields
+            if unknown:
+                raise ValueError(
+                    f"unknown agent memory namespace fields: {sorted(unknown)}"
+                )
+            items = record.get("items")
+            order = record.get("order")
+            if not isinstance(items, dict) or not isinstance(order, list):
                 raise ValueError("agent memory namespace items/order are malformed")
+            for key in items:
+                AgentMemoryManager._validate_name(key, "memory key")
+            if any(not isinstance(key, str) for key in order):
+                raise ValueError("agent memory namespace order keys must be strings")
+            if len(set(order)) != len(order):
+                raise ValueError("agent memory namespace order contains duplicates")
+            if set(order) != set(items):
+                raise ValueError(
+                    "agent memory namespace order must exactly cover stored keys"
+                )
+            if AgentMemoryManager._namespace_used(record) > quota:
+                raise ValueError("persisted agent memory namespace exceeds quota")
 
     def _root_copy(self) -> dict:
         root = self.session.values.get(_ROOT_KEY)
