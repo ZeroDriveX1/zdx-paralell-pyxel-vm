@@ -91,6 +91,19 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
     fun heartbeat(payload: JSONObject = JSONObject()): JSONObject =
         request("heartbeat", payload)
 
+    fun requestRectification(
+        targetNodeId: String,
+        reasonCode: String,
+        detail: String = "",
+        evidenceDigest: String = ""
+    ): JSONObject = request(
+        "rectification_request",
+        JSONObject().put("target_node_id", targetNodeId)
+            .put("reason_code", reasonCode)
+            .put("detail", detail.take(512))
+            .also { if (evidenceDigest.isNotBlank()) it.put("evidence_digest", evidenceDigest.lowercase()) }
+    )
+
     fun poll(availableMemoryMb: Int, cpuCount: Int, cpuPercent: Double): JSONObject = request(
         "compute_poll", JSONObject().put("available_memory_mb", availableMemoryMb)
             .put("cpu_count", cpuCount).put("cpu_percent", cpuPercent)
