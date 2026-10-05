@@ -34,6 +34,7 @@ MESSAGE_TYPES = frozenset({
     "session_hello", "session_challenge", "session_confirm", "session_ack",
     "heartbeat", "heartbeat_ack", "identity", "identity_ack",
     "capability_report", "capability_ack", "frame", "frame_manifest",
+    "frame_announce", "frame_request",
     "ack", "error", "auth_error", "test",
     "compute_register", "compute_submit", "compute_poll", "compute_task",
     "compute_result", "compute_release", "compute_fail", "compute_ack",
@@ -501,5 +502,25 @@ def heartbeat(**kwargs) -> ZDXMessage:
     return ZDXMessage(kind="heartbeat", payload={"status": "alive"}, **kwargs)
 
 
-def frame_announce(path: str, sha256: str, **kwargs) -> ZDXMessage:
-    return ZDXMessage(kind="frame", payload={"path": path, "sha256": sha256}, **kwargs)
+def _normalize_spatial_layout(layout):
+    if layout is None:
+        return None
+    if hasattr(layout, "to_dict"):
+        return layout.to_dict()
+    if isinstance(layout, dict):
+        return dict(layout)
+    raise TypeError("spatial_layout must be a dict, expose to_dict(), or be None")
+
+
+def frame_announce(path: str, sha256: str, *, spatial_layout=None, **kwargs) -> ZDXMessage:
+    """Build an authenticated frame envelope without rewriting the PNG raster."""
+    layout = _normalize_spatial_layout(spatial_layout)
+    payload = {
+        "path": path,
+        "sha256": sha256,
+        "execution_model": "spatial-png" if layout is not None else "pixel-frame",
+    }
+    if layout is not None:
+        payload["spatial_version"] = 1
+        payload["spatial_layout"] = layout
+    return ZDXMessage(kind="frame", payload=payload, **kwargs)
