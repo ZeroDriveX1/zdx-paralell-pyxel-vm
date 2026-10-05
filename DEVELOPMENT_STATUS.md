@@ -171,3 +171,22 @@ existing leases. Claims now subtract running-task RAM and thread reservations
 and are capped by registered static/safe worker limits, preventing lease-level
 overcommit.
 
+## Namespaced agent memory pass 20.0
+
+Implemented on the Pyxel-native Agent Module:
+
+- versioned logical namespaces inside the session-owned persistent region;
+- deterministic byte and entry quotas per namespace;
+- reject or deterministic FIFO eviction;
+- globally monotonic write sequencing;
+- exact full-document capacity validation before resident mutation;
+- session-lock integration with dirty/checkpoint lifecycle;
+- persisted quota-policy binding and corruption checks;
+- restart persistence and runtime convenience access.
+
+This pass intentionally keeps all managed namespaces inside the existing
+persistent-memory document. It does not create independent PNG writers and does
+not yet map working memory directly into the optional ABI working_memory
+region. A resident-region codec can add that later without changing the public
+namespace contract.
+
