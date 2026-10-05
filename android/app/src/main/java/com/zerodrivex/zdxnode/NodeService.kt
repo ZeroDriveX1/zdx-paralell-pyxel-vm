@@ -117,9 +117,18 @@ class NodeService : Service() {
             recordWork("CONNECTED", "node registered with mesh", direction = "outgoing")
             val snapshot = admission.snapshot()
             val policyBlock = admission.blockReason(policy, snapshot)
+            val mode = ZdxProtocol(this).participationMode()
+            val supportReply = nodeTransport.heartbeat(JSONObject()
+                .put("node_mode", mode.name.lowercase())
+                .put("compute_eligible", policyBlock == null)
+                .put("policy_block_reason", policyBlock ?: "")
+                .put("available_memory_mb", snapshot.availableMemoryMb)
+                .put("charging", snapshot.charging)
+                .put("user_idle", snapshot.userIdle))
+            recordSupportStatus(supportReply, mode, policyBlock)
             if (policyBlock != null) {
-                updateStatus(true, "connected; compute paused: $policyBlock", workState = "POLICY_BLOCKED")
-                recordWork("POLICY", "compute paused: $policyBlock")
+                updateStatus(true, "connected; support mode · compute paused: $policyBlock", workState = "SUPPORT")
+                recordWork("SUPPORT", "mesh support active while compute paused: $policyBlock")
                 return
             }
             recordWork("POLL", "requesting available work", direction = "outgoing")
@@ -226,6 +235,31 @@ class NodeService : Service() {
 
     private fun safeFail(nodeTransport: ZdxMeshTransport, taskId: String, reason: String, leaseId: String?) {
         try { nodeTransport.fail(taskId, reason.take(4_000), leaseId) } catch (_: Exception) { }
+    }
+
+    private fun recordSupportStatus(reply: JSONObject, mode: NodeMode, policyBlock: String?) {
+        val payload = reply.optJSONObject("payload") ?: JSONObject()
+        val queue = payload.optJSONObject("queue") ?: JSONObject()
+        val queued = queue.optInt("queued", 0)
+        val running = queue.optInt("running", 0)
+        val completed = queue.optInt("completed", 0)
+        val failed = queue.optInt("failed", 0)
+        val master = payload.optString("master").takeIf { it.isNotBlank() }
+        getSharedPreferences("zdx_status", MODE_PRIVATE).edit()
+            .putString("node_mode", mode.name)
+            .putInt("queue_queued", queued)
+            .putInt("queue_running", running)
+            .putInt("queue_completed", completed)
+            .putInt("queue_failed", failed)
+            .putString("cluster_master", master ?: "")
+            .putString("policy_block_reason", policyBlock ?: "")
+            .apply()
+        val routing = master?.let { " · master=$it" }.orEmpty()
+        recordWork(
+            "SUPPORT",
+            "mode=${mode.name.lowercase()} queue=$queued queued/$running running/$completed completed/$failed failed$routing",
+            direction = "incoming"
+        )
     }
 
     private fun saveLastTaskDetail(taskId: String, result: JSONObject, elapsedMs: Long) {
