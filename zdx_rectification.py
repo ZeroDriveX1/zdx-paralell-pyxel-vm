@@ -19,6 +19,7 @@ MAX_PENDING = 10_000
 MAX_DETAIL = 512
 REPORTER_WINDOW_SECONDS = 3600
 MAX_REPORTS_PER_WINDOW = 20
+COALESCE_WRITE_INTERVAL_SECONDS = 60.0
 ALLOWED_REASONS = frozenset({
     "authentication_age",
     "replay_pattern",
@@ -93,6 +94,8 @@ class RectificationQueue:
                 and item.get("target_node_id") == target
                 and item.get("reason_code") == reason
             ):
+                if current - float(item.get("last_requested_at", item.get("requested_at", 0.0))) < COALESCE_WRITE_INTERVAL_SECONDS:
+                    return dict(item)
                 item["last_requested_at"] = current
                 item["repeat_count"] = int(item.get("repeat_count", 1)) + 1
                 if detail:
