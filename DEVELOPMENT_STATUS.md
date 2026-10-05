@@ -52,3 +52,20 @@ The 16-opcode ISA is unchanged. Spatial PNG v1 changes machine geometry and pers
 
 Remaining validation: dedicated resident-vs-path performance benchmarks, sustained same-frame mutation soak, deliberate power-loss testing during spatial commits, and multi-node spatial workload execution on separate physical/VM hosts.
 
+
+
+## Spatial resident-path benchmark — 2026-10-05
+
+A dedicated deterministic benchmark now separates resident raster execution from PNG decode/checkpoint and compatibility persistence costs. GitHub Actions run 37347994293 on Ubuntu 24.04 / Python 3.11.16 measured:
+
+- resident spatial VM: 27.0 µs mean, 37,033 ops/s;
+- file-decoded spatial VM: 93.6 µs mean, 10,688 ops/s;
+- resident execution speedup over per-call PNG decode: 3.47x;
+- same-frame agent transaction including lock, decode, VM execution, binary memory update, PNG checkpoint, fsync, and backup handling: 1.766 ms mean, 566 ops/s;
+- compatibility one-PNG-per-key agent-memory update for the equivalent four-key state payload: 12.218 ms mean, 81.8 ops/s;
+- same-frame spatial transaction speedup over compatibility persistence: 6.92x;
+- canonical JSON encode/decode alone: 7.96 µs mean.
+
+The benchmark deliberately excludes LLM/provider inference and network latency. These results demonstrate local VM/state-path gains only. The 65.4x difference between resident VM execution and the full same-frame checkpoint path also confirms that PNG persistence, not opcode execution, is currently the dominant local cost once a checkpoint is required.
+
+Machine-readable evidence is stored in `validation_results/spatial_resident_benchmark.json`; the reproducible harness is `zdx_spatial_benchmark.py`.
