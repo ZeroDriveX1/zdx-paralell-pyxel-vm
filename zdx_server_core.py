@@ -173,7 +173,7 @@ class ZDXServer:
                 elif message.kind == "heartbeat":
                     self.state.record_heartbeat()
                     compute = self.compute.status()
-                    self._send(conn, ZDXMessage(kind="heartbeat_ack", payload={
+                    self._send(conn, ZDXMessage(kind="heartbeat", payload={
                         "status": "alive",
                         "queue": {
                             "queued": len(compute.get("queued", {})),
