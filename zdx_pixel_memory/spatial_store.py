@@ -354,6 +354,46 @@ class SpatialPixelStore:
         self._write_frame_unlocked(frame, values, current_generation)
         atomic_write_bytes(target, frame.to_png_bytes(), _already_locked=True)
 
+    def load_resident_snapshot(self) -> tuple[SpatialFrame, dict, int, str]:
+        """Load one verified frame/memory generation for resident execution."""
+        with self._lock():
+            frame, values, generation = self._read_frame_unlocked()
+            artifact_sha256 = hashlib.sha256(Path(self.path).read_bytes()).hexdigest()
+            return frame, dict(values), generation, artifact_sha256
+
+    def commit_snapshot(
+        self,
+        frame: SpatialFrame,
+        values: dict,
+        *,
+        vm_generation: int,
+        vm_checkpoint_hash: str,
+        expected_artifact_sha256: str | None = None,
+    ) -> dict:
+        """Commit a frozen resident snapshot with optional CAS protection."""
+        if not isinstance(values, dict):
+            raise TypeError("checkpoint values must be a dictionary")
+        with self._lock():
+            target = Path(self.path)
+            if expected_artifact_sha256 is not None:
+                current = hashlib.sha256(target.read_bytes()).hexdigest()
+                if not secrets.compare_digest(current, expected_artifact_sha256):
+                    raise RuntimeError("spatial checkpoint parent artifact changed concurrently")
+            current_generation = 0
+            if target.exists():
+                try:
+                    _, current_generation = self._decode_document(self._open_frame())
+                except Exception:
+                    current_generation = 0
+            self._write_frame_unlocked(frame, values, current_generation)
+            payload = frame.to_png_bytes()
+            atomic_write_bytes(target, payload, _already_locked=True)
+            return {
+                "vm_generation": int(vm_generation),
+                "vm_checkpoint_hash": str(vm_checkpoint_hash),
+                "artifact_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+
     def transaction_frame(self, mutator):
         """Run one locked resident-frame transaction and checkpoint once.
 
