@@ -33,19 +33,15 @@ class NodeService : Service() {
     private val monitor = object : Runnable {
         override fun run() {
             if (!serviceActive.get()) return
-            val policy = policyStore.load()
             val settings = meshStore.load()
-            val policyBlock = admission.blockReason(policy)
             var cycleStarted = false
-            if (settings.enabled && settings.transportConfig().isConfigured() && policyBlock == null && cycleActive.compareAndSet(false, true)) {
+            if (settings.enabled && settings.transportConfig().isConfigured() && cycleActive.compareAndSet(false, true)) {
                 cycleStarted = true
                 ioExecutor.execute { runMeshCycle(settings) }
             } else if (!settings.enabled) {
                 updateStatus(false, "disabled", workState = "DISABLED")
             } else if (!settings.transportConfig().isConfigured()) {
                 updateStatus(false, "mesh not configured", workState = "UNCONFIGURED")
-            } else if (policyBlock != null) {
-                updateStatus(false, "policy paused: $policyBlock", workState = "POLICY_BLOCKED")
             }
             if (!cycleStarted && serviceActive.get()) {
                 handler.postDelayed(this, retryDelayMs)
@@ -112,19 +108,20 @@ class NodeService : Service() {
         transport = nodeTransport
         try {
             val policy = policyStore.load()
-            val initialBlock = admission.blockReason(policy)
-            if (initialBlock != null) {
-                updateStatus(false, "policy paused: $initialBlock", workState = "POLICY_BLOCKED")
-                return
-            }
             recordWork("CONNECTING", "registering node and capabilities", direction = "outgoing")
             val capability = ZdxProtocol(this).capabilityReportJson()
                 .put("android_vm_adapter_protocol", ANDROID_VM_ADAPTER_PROTOCOL)
                 .put("android_vm_adapters", taskExecutor.advertisedAdapters())
             nodeTransport.register(capability)
             retryDelayMs = BASE_RETRY_MS
-            recordWork("CONNECTED", "node registered; polling for work", direction = "outgoing")
+            recordWork("CONNECTED", "node registered with mesh", direction = "outgoing")
             val snapshot = admission.snapshot()
+            val policyBlock = admission.blockReason(policy, snapshot)
+            if (policyBlock != null) {
+                updateStatus(true, "connected; compute paused: $policyBlock", workState = "POLICY_BLOCKED")
+                recordWork("POLICY", "compute paused: $policyBlock")
+                return
+            }
             recordWork("POLL", "requesting available work", direction = "outgoing")
             val poll = nodeTransport.poll(
                 (snapshot.availableMemoryMb - policy.minFreeMemoryMb).coerceAtLeast(0),
