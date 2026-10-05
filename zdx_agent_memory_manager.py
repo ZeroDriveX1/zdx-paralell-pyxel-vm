@@ -40,6 +40,11 @@ class AgentMemoryManager:
             return
         if not isinstance(root, dict):
             raise ValueError("agent memory root must be an object")
+        unknown_root = set(root) - {"version", "namespaces"}
+        if unknown_root:
+            raise ValueError(
+                f"unknown agent memory root fields: {sorted(unknown_root)}"
+            )
         if root.get("version") != _VERSION:
             raise ValueError("unsupported agent memory schema version")
         namespaces = root.get("namespaces")
@@ -137,6 +142,10 @@ class AgentMemoryManager:
                 raise ValueError("existing namespace contents exceed requested quota")
         root["namespaces"][namespace] = record
         self._commit_root(root)
+        self.session.record_event(
+            "memory.configure",
+            f"{namespace}:{quota_bytes}:{eviction}".encode("utf-8"),
+        )
         return self.stats(namespace)
 
     def _namespace(self, root: dict, namespace: str) -> dict:
@@ -176,10 +185,11 @@ class AgentMemoryManager:
                 root["namespaces"][namespace] = old
                 raise ValueError("agent memory item cannot fit within namespace quota")
 
-        try:
-            self._commit_root(root)
-        except Exception:
-            raise
+        self._commit_root(root)
+        self.session.record_event(
+            "memory.put",
+            f"{namespace}:{key}:{len(evicted)}".encode("utf-8"),
+        )
         return {"key": key, "evicted": evicted, **self.stats(namespace, root=root)}
 
     def get(self, namespace: str, key: str, default=None):
@@ -197,6 +207,9 @@ class AgentMemoryManager:
         record["items"].pop(key)
         record["order"] = [item for item in record["order"] if item != key]
         self._commit_root(root)
+        self.session.record_event(
+            "memory.delete", f"{namespace}:{key}".encode("utf-8")
+        )
         return True
 
     def compact(self, namespace: str) -> dict:
@@ -217,6 +230,9 @@ class AgentMemoryManager:
         elif self._namespace_used(record) > record["quota_bytes"]:
             raise ValueError("namespace remains over quota after compaction")
         self._commit_root(root)
+        self.session.record_event(
+            "memory.compact", namespace.encode("utf-8")
+        )
         return self.stats(namespace, root=root)
 
     def clear(self, namespace: str) -> None:
@@ -225,6 +241,9 @@ class AgentMemoryManager:
         record["items"] = {}
         record["order"] = []
         self._commit_root(root)
+        self.session.record_event(
+            "memory.clear", namespace.encode("utf-8")
+        )
 
     def stats(self, namespace: str, *, root: dict | None = None) -> dict:
         source = self._root_copy() if root is None else root
