@@ -47,6 +47,14 @@ class RectificationQueue:
     def pending_count(self) -> int:
         return len(self.pending())
 
+    def has_pending(self, target_node_id: str, reason_code: str | None = None) -> bool:
+        target = str(target_node_id)
+        return any(
+            item.get("target_node_id") == target
+            and (reason_code is None or item.get("reason_code") == reason_code)
+            for item in self.pending()
+        )
+
     def request(
         self,
         *,
