@@ -36,11 +36,12 @@ class CapabilityGrant:
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not _SAFE.fullmatch(self.name):
             raise ValueError("capability name is invalid")
-        if not self.actions:
+        raw_actions = tuple(self.actions)
+        if not raw_actions:
             raise ValueError("capability grant requires at least one exact action")
-        normalized = tuple(sorted(set(self.actions)))
-        if any(not isinstance(action, str) or not _SAFE.fullmatch(action) for action in normalized):
+        if any(not isinstance(action, str) or not _SAFE.fullmatch(action) for action in raw_actions):
             raise ValueError("capability action name is invalid")
+        normalized = tuple(sorted(set(raw_actions)))
         if normalized != self.actions:
             object.__setattr__(self, "actions", normalized)
 
