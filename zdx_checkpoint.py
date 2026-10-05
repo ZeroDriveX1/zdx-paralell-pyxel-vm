@@ -113,6 +113,8 @@ class SpatialCheckpointManager:
                 raise RuntimeError("checkpoint manager is closed")
             if self._error is not None:
                 raise RuntimeError("checkpoint worker failed") from self._error
+            if generation < self._last_committed_generation:
+                raise ValueError("checkpoint generation cannot precede committed generation")
 
             request_id = self._next_request_id
             self._next_request_id += 1
