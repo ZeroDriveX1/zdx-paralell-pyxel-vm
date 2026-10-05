@@ -134,4 +134,4 @@ Current semantic roles are:
 
 Inbound/outbound mailboxes use a bounded binary ring format inside their declared regions. Each message is sequence-bound and integrity-checked; queue overflow is explicit rather than spilling into adjacent raster state. Mailbox regions must be distinct from the persistent-memory region.
 
-`SpatialAgentSession` owns the resident frame containing those regions. A clean flush/close forces dirty resident state durable even if the normal 10-execution checkpoint interval has not been reached.
+`SpatialAgentSession` owns the resident frame containing those regions. A clean flush/close forces dirty resident state durable even if the normal 10-execution checkpoint interval has not been reached. `SpatialFrame.dirty_rectangles` records resident cell/byte mutation regions as bounded half-open rectangles; this is tracking metadata only and does not imply in-place PNG IDAT patching.
