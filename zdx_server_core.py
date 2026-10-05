@@ -172,7 +172,16 @@ class ZDXServer:
                     self._send(conn, ZDXMessage(kind="capability_ack", payload={"accepted": True}))
                 elif message.kind == "heartbeat":
                     self.state.record_heartbeat()
-                    self._send(conn, heartbeat())
+                    compute = self.compute.status()
+                    self._send(conn, ZDXMessage(kind="heartbeat_ack", payload={
+                        "status": "alive",
+                        "queue": {
+                            "queued": len(compute.get("queued", {})),
+                            "running": len(compute.get("running", {})),
+                            "completed": len(compute.get("completed", {})),
+                            "failed": len(compute.get("failed", {})),
+                        },
+                    }))
                 else:
                     self._send(conn, ZDXMessage(kind="ack", payload={"received": message.kind}))
         except AuthenticationError as exc:
