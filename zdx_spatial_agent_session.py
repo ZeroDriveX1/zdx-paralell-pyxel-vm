@@ -87,6 +87,12 @@ class SpatialAgentSession:
         selected_abi.validate(layout)
         persistent_region = selected_abi.region_for(ROLE_PERSISTENT_MEMORY)
         memory_region = getattr(memory, "region", None)
+        if memory_region is None and any(
+            item.role != ROLE_PERSISTENT_MEMORY for item in selected_abi.bindings
+        ):
+            raise ValueError(
+                "agent ABI subregions require memory bound to a named persistent region"
+            )
         if memory_region is not None and persistent_region != memory_region:
             raise ValueError(
                 "agent ABI persistent_memory role must match the spatial memory region"
