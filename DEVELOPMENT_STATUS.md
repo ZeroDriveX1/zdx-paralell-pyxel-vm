@@ -39,3 +39,16 @@ Deterministic tests use an in-process Ollama-compatible HTTP server and do not r
 Pass 15 validation evidence: 13 focused Ollama/mission tests passed. The finalized 20-iteration deterministic-provider benchmark measured 1,351.60 framework missions/minute, 44.39 ms average end-to-end benchmark time, 28.05 µs scheduler overhead, 37.31 ms persistence overhead, and 27.85 ms for one forced reflection cycle. These figures exclude model inference and are not Ollama throughput.
 
 `qwen2.5:1.5b` (986 MB, ID `65ec06548149`) was installed and verified in the local Ollama inventory. A live scheduled mission correctly failed closed after three HTTP 500 attempts and persisted a valid failure record. Direct `ollama run` confirmed the external Ollama 0.32.3 installation lacks its `llama-server` binary; therefore no real model response or live model benchmark is claimed. The general Linux repair bundle was not retained because it began installing irrelevant CUDA assets and did not provide a practical Termux repair path.
+
+## Spatial PNG v1 integration pass 16.0
+
+Implemented on the canonical parallel VM: strict spatial geometry contracts; direct X/Y RGB machine cells; executable/storage plane separation; named storage regions; deterministic typed single-PNG agent memory; resident same-frame agent transactions; canonical spatial metadata propagation through manifests/protocol/sync/compute; and spatial worker capability admission.
+
+The same-frame resident path holds one process lock, decodes one PNG generation, executes the already-decoded raster, updates only the declared non-executable memory region, and performs one atomic PNG checkpoint. Exceptions before commit leave the previous generation unchanged.
+
+Security/correctness hardening includes rejection of non-PNG/non-RGB inputs, boolean/non-integer geometry, inconsistent derived capacities, custom executable named regions, unsupported spatial versions, thread/execution-row mismatches, oversized raster working sets, and stale-backup recovery that would roll executable rows backward.
+
+The 16-opcode ISA is unchanged. Spatial PNG v1 changes machine geometry and persistence/state handling, not opcode numbering.
+
+Remaining validation: dedicated resident-vs-path performance benchmarks, sustained same-frame mutation soak, deliberate power-loss testing during spatial commits, and multi-node spatial workload execution on separate physical/VM hosts.
+
