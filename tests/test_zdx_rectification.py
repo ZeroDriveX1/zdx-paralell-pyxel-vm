@@ -13,12 +13,14 @@ def test_rectification_queue_is_advisory_and_deduplicates(tmp_path):
         target_node_id="peer-a",
         reason_code="suspicious_authenticated_behavior",
         detail="signed behavior needs review",
+        now=1000,
     )
     second = queue.request(
         reporter_node_id="observer",
         target_node_id="peer-a",
         reason_code="suspicious_authenticated_behavior",
         detail="same observation repeated",
+        now=1061,
     )
 
     assert first["request_id"] == second["request_id"]
