@@ -17,10 +17,9 @@ data class WorkEvent(
 
 class WorkEventStore(context: Context) {
     private val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private val lock = Any()
 
     fun append(type: String, message: String, taskId: String? = null, direction: String? = null) {
-        synchronized(lock) {
+        synchronized(LOCK) {
             val events = loadMutable()
             events.add(JSONObject()
                 .put("timestamp", System.currentTimeMillis())
@@ -37,7 +36,7 @@ class WorkEventStore(context: Context) {
         }
     }
 
-    fun recent(limit: Int = 80): List<WorkEvent> = synchronized(lock) {
+    fun recent(limit: Int = 80): List<WorkEvent> = synchronized(LOCK) {
         val values = loadMutable().takeLast(limit.coerceIn(1, MAX_EVENTS))
         values.map {
             WorkEvent(
@@ -54,7 +53,7 @@ class WorkEventStore(context: Context) {
         val formatter = SimpleDateFormat("HH:mm:ss", Locale.US)
         val events = recent(limit)
         if (events.isEmpty()) return "No work events yet."
-        return events.joinToString("\\n") { event ->
+        return events.joinToString("\n") { event ->
             val time = formatter.format(Date(event.timestamp))
             val task = event.taskId?.let { " [$it]" }.orEmpty()
             val direction = event.direction?.let { " <$it>" }.orEmpty()
@@ -63,7 +62,7 @@ class WorkEventStore(context: Context) {
     }
 
     fun clear() {
-        synchronized(lock) {
+        synchronized(LOCK) {
             preferences.edit().remove(KEY_EVENTS).apply()
         }
     }
@@ -82,5 +81,6 @@ class WorkEventStore(context: Context) {
         private const val PREFS = "zdx_work_events"
         private const val KEY_EVENTS = "events"
         private const val MAX_EVENTS = 250
+        private val LOCK = Any()
     }
 }
