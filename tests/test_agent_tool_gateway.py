@@ -507,3 +507,46 @@ def test_forged_or_stale_public_proposal_is_rejected(tmp_path):
         gateway.authorize(proposal)
 
     runtime.close()
+
+
+def test_action_argument_complexity_is_bounded(tmp_path):
+    path, _layout, _memory, runtime = _runtime(tmp_path)
+    tools = ToolRegistry()
+    tools.register("store", lambda proposal: {})
+    gateway = runtime.tool_gateway(path, registry=tools, policy=_policy())
+
+    nested = {}
+    cursor = nested
+    for _ in range(18):
+        cursor["x"] = {}
+        cursor = cursor["x"]
+    with pytest.raises(ValueError, match="nesting depth"):
+        gateway.propose(
+            tool="store", operation="write",
+            resource="store://safe/a",
+            arguments=nested,
+            idempotency_key="deep",
+        )
+
+    with pytest.raises(ValueError, match="string exceeds maximum size"):
+        gateway.propose(
+            tool="store", operation="write",
+            resource="store://safe/a",
+            arguments={"value": "x" * (16 * 1024 + 1)},
+            idempotency_key="large-string",
+        )
+    runtime.close()
+
+
+def test_policy_collections_must_be_immutable_tuples():
+    with pytest.raises(TypeError, match="must be tuples"):
+        ToolCapabilityRule(
+            tool="store",
+            operations=["write"],
+            resource_prefixes=(),
+        )
+    with pytest.raises(TypeError, match="rules must be a tuple"):
+        AgentToolPolicy(
+            policy_id="mutable",
+            rules=[],
+        )
