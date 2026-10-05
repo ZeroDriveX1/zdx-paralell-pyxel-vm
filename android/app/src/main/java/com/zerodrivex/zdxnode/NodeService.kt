@@ -125,6 +125,15 @@ class NodeService : Service() {
                 .put("available_memory_mb", snapshot.availableMemoryMb)
                 .put("charging", snapshot.charging)
                 .put("user_idle", snapshot.userIdle))
+            val supportPayload = supportReply.optJSONObject("payload") ?: JSONObject()
+            val reattestChallenge = supportPayload.optJSONObject("reattest_challenge")
+            if (reattestChallenge != null) {
+                recordWork("REAUTH", "lightweight re-attestation challenge received", direction = "incoming")
+                val reattestAck = nodeTransport.respondToReattestation(reattestChallenge)
+                val accepted = reattestAck.optJSONObject("payload")?.optBoolean("accepted", false) == true
+                if (!accepted) throw IOException("re-attestation was not accepted")
+                recordWork("REAUTH", "enrolled key possession re-verified", direction = "outgoing")
+            }
             recordSupportStatus(supportReply, mode, policyBlock)
             if (policyBlock != null) {
                 updateStatus(true, "connected; support mode · compute paused: $policyBlock", workState = "SUPPORT")
