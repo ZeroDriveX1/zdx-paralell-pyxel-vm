@@ -135,3 +135,32 @@ Current semantic roles are:
 Inbound/outbound mailboxes use a bounded binary ring format inside their declared regions. Each message is sequence-bound and integrity-checked; queue overflow is explicit rather than spilling into adjacent raster state. Mailbox regions must be distinct from the persistent-memory region.
 
 `SpatialAgentSession` owns the resident frame containing those regions. A clean flush/close forces dirty resident state durable even if the normal 10-execution checkpoint interval has not been reached.
+
+## Agent ABI v1 and native spatial mailboxes
+
+Pyxel-native agents now have a versioned semantic ABI layered on top of the
+existing SpatialLayout geometry. The ABI binds semantic roles to named,
+non-executable regions without changing the 16-opcode ISA. Current roles are:
+
+- persistent_memory
+- working_memory
+- mailbox_in
+- mailbox_out
+- capabilities
+- provenance
+
+The ABI is bound to a SHA-256 digest of the canonical SpatialLayout. Persisted
+ABI metadata must match the reopened frame exactly; semantic roles cannot be
+silently rebound to different coordinates.
+
+Spatial mailboxes use a bounded binary FIFO ring stored directly inside their
+declared PNG region. Each slot contains a monotonic sequence, sender,
+recipient, topic, payload length, and a domain-separated SHA-256 integrity
+digest. Mailbox regions cannot overlap executable rows and full queues fail
+closed rather than overwriting unread messages.
+
+SpatialFrame now exposes bounded half-open dirty rectangles for every direct
+cell/byte mutation. Dirty tracking is resident metadata used to identify
+changed areas; it does not alter PNG semantics or imply that arbitrary IDAT
+streams can be patched in-place without recompression.
+
