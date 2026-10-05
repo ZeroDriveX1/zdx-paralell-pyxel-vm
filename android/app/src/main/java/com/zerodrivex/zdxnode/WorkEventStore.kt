@@ -21,14 +21,33 @@ class WorkEventStore(context: Context) {
     fun append(type: String, message: String, taskId: String? = null, direction: String? = null) {
         synchronized(LOCK) {
             val events = loadMutable()
-            events.add(JSONObject()
-                .put("timestamp", System.currentTimeMillis())
-                .put("type", type.take(40))
-                .put("message", message.replace(Regex("[\\r\\n]"), " ").take(500))
-                .also {
-                    if (!taskId.isNullOrBlank()) it.put("task_id", taskId.take(160))
-                    if (!direction.isNullOrBlank()) it.put("direction", direction.take(24))
-                })
+            val normalizedType = type.take(40)
+            val normalizedMessage = message.replace(Regex("[\\r\\n]"), " ").take(500)
+            val normalizedTask = taskId?.takeIf { it.isNotBlank() }?.take(160)
+            val normalizedDirection = direction?.takeIf { it.isNotBlank() }?.take(24)
+            val now = System.currentTimeMillis()
+
+            val last = events.lastOrNull()
+            val duplicate = last != null &&
+                last.optString("type") == normalizedType &&
+                last.optString("message") == normalizedMessage &&
+                last.optString("task_id").takeIf { it.isNotBlank() } == normalizedTask &&
+                last.optString("direction").takeIf { it.isNotBlank() } == normalizedDirection
+
+            if (duplicate) {
+                last.put("timestamp", now)
+                last.put("count", last.optInt("count", 1) + 1)
+            } else {
+                events.add(JSONObject()
+                    .put("timestamp", now)
+                    .put("type", normalizedType)
+                    .put("message", normalizedMessage)
+                    .put("count", 1)
+                    .also {
+                        if (normalizedTask != null) it.put("task_id", normalizedTask)
+                        if (normalizedDirection != null) it.put("direction", normalizedDirection)
+                    })
+            }
             while (events.size > MAX_EVENTS) events.removeAt(0)
             val array = JSONArray()
             events.forEach { array.put(it) }
@@ -57,7 +76,9 @@ class WorkEventStore(context: Context) {
             val time = formatter.format(Date(event.timestamp))
             val task = event.taskId?.let { " [$it]" }.orEmpty()
             val direction = event.direction?.let { " <$it>" }.orEmpty()
-            "$time ${event.type}$direction$task ${event.message}"
+            val count = loadMutable().lastOrNull()?.optInt("count", 1) ?: 1
+            val repeat = if (count > 1) " x$count" else ""
+            "$time ${event.type}$direction$task ${event.message}$repeat"
         }
     }
 
