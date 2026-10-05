@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
-import android.os.Build
 import android.os.PowerManager
 
 /** Persisted compute participation settings for a mobile node. */
@@ -45,7 +44,8 @@ class ResourcePolicyStore(context: Context) {
 data class AndroidResourceSnapshot(
     val availableMemoryMb: Int,
     val charging: Boolean,
-    val deviceIdle: Boolean
+    val userIdle: Boolean,
+    val lowMemory: Boolean
 )
 
 /** Admission gate used before any Android compute work is started. */
@@ -59,11 +59,12 @@ class AndroidResourceAdmission(private val context: Context) {
         val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
             status == BatteryManager.BATTERY_STATUS_FULL
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        val deviceIdle = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || powerManager.isDeviceIdleMode
+        val userIdle = !powerManager.isInteractive
         return AndroidResourceSnapshot(
             availableMemoryMb = (memory.availMem / (1024 * 1024)).toInt(),
             charging = charging,
-            deviceIdle = deviceIdle
+            userIdle = userIdle,
+            lowMemory = memory.lowMemory
         )
     }
 
@@ -71,7 +72,8 @@ class AndroidResourceAdmission(private val context: Context) {
         if (!policy.enabled) return false
         val current = snapshot()
         if (policy.requireCharging && !current.charging) return false
-        if (policy.idleOnly && !current.deviceIdle) return false
+        if (policy.idleOnly && !current.userIdle) return false
+        if (current.lowMemory) return false
         return current.availableMemoryMb - policy.minFreeMemoryMb >= policy.memoryLimitMb
     }
 }
