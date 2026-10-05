@@ -162,8 +162,33 @@ class ParallelPyxelVM:
         """Return the deterministic VM state marker for the latest execution."""
         return {
             "generation": self.execution_generation,
+            "clock": self.clock,
             "checkpoint_hash": self.last_checkpoint_hash,
         }
+
+    def restore_checkpoint(self, *, generation: int, clock: int, registers: dict, shared: dict, checkpoint_hash: str) -> None:
+        """Restore a persisted VM generation after independently verifying its hash."""
+        actual = compute_vm_checkpoint_hash(
+            generation=generation,
+            clock=clock,
+            registers=registers,
+            shared=shared,
+        )
+        if actual != checkpoint_hash:
+            raise ValueError("persisted VM checkpoint hash does not match checkpoint state")
+        expected_threads = {f"T{i}" for i in range(self.threads)}
+        if set(registers) != expected_threads:
+            raise ValueError("persisted register set does not match VM thread geometry")
+        if set(shared) != set(self.shared):
+            raise ValueError("persisted shared-memory set does not match VM")
+        self.registers = {
+            name: {key: int(value) for key, value in values.items()}
+            for name, values in registers.items()
+        }
+        self.shared = {name: int(value) for name, value in shared.items()}
+        self.execution_generation = int(generation)
+        self.clock = int(clock)
+        self.last_checkpoint_hash = checkpoint_hash
 
     # ------------------------------------------------------------------
     # Shared memory persistence
