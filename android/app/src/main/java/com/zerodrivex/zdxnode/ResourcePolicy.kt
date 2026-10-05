@@ -68,12 +68,16 @@ class AndroidResourceAdmission(private val context: Context) {
         )
     }
 
-    fun canRun(policy: ResourcePolicy): Boolean {
-        if (!policy.enabled) return false
-        val current = snapshot()
-        if (policy.requireCharging && !current.charging) return false
-        if (policy.idleOnly && !current.userIdle) return false
-        if (current.lowMemory) return false
-        return current.availableMemoryMb - policy.minFreeMemoryMb >= policy.memoryLimitMb
+    fun blockReason(policy: ResourcePolicy, current: AndroidResourceSnapshot = snapshot()): String? {
+        if (!policy.enabled) return "background compute disabled"
+        if (policy.requireCharging && !current.charging) return "device is not charging"
+        if (policy.idleOnly && !current.userIdle) return "device is in active use"
+        if (current.lowMemory) return "Android reports low-memory pressure"
+        if (current.availableMemoryMb - policy.minFreeMemoryMb < policy.memoryLimitMb) {
+            return "insufficient free memory for configured reserve and compute limit"
+        }
+        return null
     }
+
+    fun canRun(policy: ResourcePolicy): Boolean = blockReason(policy) == null
 }
