@@ -1,6 +1,20 @@
 """
 # ZDX Parallel Pyxel VM - Changelog
 
+## [Unreleased] - Spatial PNG v1 Hardening and Resident Agent Transactions
+
+- Restored and hardened the spatial PNG machine model on the current authenticated/persistent runtime.
+- Added canonical spatial-layout reconstruction with strict integer, geometry, capacity, region-kind, and maximum-cell validation.
+- Enforced standards-valid RGB PNG inputs for spatial execution; implicit RGBA/palette/JPEG conversion is rejected.
+- Added resident RGB-raster execution so same-frame agent workflows can decode once, execute, update non-executable spatial memory, and checkpoint once.
+- Added locked single-checkpoint spatial-memory transactions with rollback-on-exception semantics.
+- Prevented corrupt same-frame memory recovery from restoring a backup whose executable plane differs from the current frame.
+- Bound distributed spatial task admission to threads == execution_rows, spatial protocol v1, worker feature support, and a conservative raster working-set budget.
+- Canonicalized spatial geometry/version metadata across frame manifests, workload manifests, protocol descriptors, frame sync, and authenticated frame announcements.
+- Kept the existing 16-opcode ISA unchanged; this pass changes geometry/state handling, not opcode numbering or semantics.
+- Added regression coverage for malformed layouts, noncanonical image containers, resident transaction rollback, executable-plane rollback protection, and spatial compute admission.
+
+
 ## [Unreleased] - Distributed Compute and Resource-Safe Workers
 
 - Added a persistent, memory-aware coordinator queue for verified PNG frame
