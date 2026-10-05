@@ -74,3 +74,13 @@ The repository now includes `.github/workflows/release-validation.yml`. The gate
 Integrated release tests also exercise a real authenticated socket flow from stale-auth review through heartbeat challenge, signed Ed25519 re-attestation, and scoped review resolution.
 
 The gate intentionally does not substitute for physical Android-device testing, multi-host long-duration concurrency, or fleet-scale capacity testing.
+
+
+## Agent ABI/session/mailbox gate
+
+- Validate Agent ABI v1 layout hash and reject unknown versions or silent region rebinding.
+- Reject duplicate role-to-region bindings and any binding that overlaps the execution plane.
+- Verify native mailbox FIFO order, bounded capacity, sequence wrap through ring slots, and SHA-256 tamper detection.
+- Verify mailbox and VM state survive a barrier checkpoint and restart in the same spatial PNG.
+- Verify clean session close persists dirty generations before the normal checkpoint interval.
+- Verify an exact barrier at the same VM generation waits for the newer mailbox/frame snapshot rather than returning on an older generation-only checkpoint.
