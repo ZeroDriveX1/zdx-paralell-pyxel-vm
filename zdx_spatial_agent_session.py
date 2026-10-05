@@ -29,6 +29,7 @@ class SpatialAgentSession:
         values: dict,
         manager: SpatialCheckpointManager,
         abi: SpatialAgentABI,
+        dirty: bool = False,
     ):
         self.image_path = os.path.abspath(image_path)
         self.vm = vm
@@ -39,6 +40,7 @@ class SpatialAgentSession:
         self.abi = abi
         self._mailboxes: dict[str, SpatialMailbox] = {}
         self._closed = False
+        self._dirty = bool(dirty)
         self._lock = threading.RLock()
 
     @staticmethod
@@ -99,6 +101,7 @@ class SpatialAgentSession:
             )
 
         persisted_abi = values.get("agent_abi")
+        dirty = persisted_abi is None
         if persisted_abi is not None:
             restored_abi = SpatialAgentABI.from_dict(persisted_abi, layout)
             if restored_abi.to_dict() != selected_abi.to_dict():
@@ -127,10 +130,13 @@ class SpatialAgentSession:
             )
             values.update(seed)
 
-        values.update({
+        metadata = {
             "spatial_layout": layout.to_dict(),
             "source_frame": target_path,
-        })
+        }
+        if any(values.get(key) != value for key, value in metadata.items()):
+            dirty = True
+        values.update(metadata)
         manager = SpatialCheckpointManager(
             store,
             interval=checkpoint_interval,
@@ -144,6 +150,7 @@ class SpatialAgentSession:
             values=values,
             manager=manager,
             abi=selected_abi,
+            dirty=dirty,
         )
 
     def _ensure_open(self) -> None:
@@ -188,6 +195,7 @@ class SpatialAgentSession:
             self._activate_vm()
             self.vm.execute_spatial_frame(self.frame)
             marker = self._capture_state()
+            self._dirty = True
             if self.manager.due(marker["generation"]):
                 self.manager.submit(
                     self.frame,
@@ -195,6 +203,7 @@ class SpatialAgentSession:
                     generation=marker["generation"],
                     checkpoint_hash=marker["checkpoint_hash"],
                 )
+                self._dirty = False
             return self.vm.registers
 
     def mailbox(self, role: str, *, slot_size: int = 256) -> SpatialMailbox:
@@ -207,6 +216,7 @@ class SpatialAgentSession:
             if cached is None:
                 cached = SpatialMailbox(self.frame, region, slot_size=slot_size)
                 self._mailboxes[role] = cached
+                self._dirty = True
             elif cached.slot_size != slot_size:
                 raise ValueError("mailbox already opened with a different slot size")
             return cached
@@ -221,16 +231,21 @@ class SpatialAgentSession:
         role: str = ROLE_MAILBOX_OUT,
     ):
         with self._lock:
-            return self.mailbox(role).enqueue(
+            message = self.mailbox(role).enqueue(
                 payload,
                 sender=sender,
                 recipient=recipient,
                 topic=topic,
             )
+            self._dirty = True
+            return message
 
     def receive(self, *, role: str = ROLE_MAILBOX_IN):
         with self._lock:
-            return self.mailbox(role).dequeue()
+            message = self.mailbox(role).dequeue()
+            if message is not None:
+                self._dirty = True
+            return message
 
     def checkpoint(self, *, barrier: bool = True) -> dict:
         with self._lock:
@@ -244,16 +259,22 @@ class SpatialAgentSession:
                 checkpoint_hash=marker["checkpoint_hash"],
                 barrier=barrier,
             )
+            self._dirty = False
             return copy.deepcopy(marker)
 
     def flush(self, timeout: float | None = None) -> bool:
-        self._ensure_open()
-        return self.manager.flush(timeout=timeout)
+        with self._lock:
+            self._ensure_open()
+            if self._dirty:
+                self.checkpoint(barrier=True)
+            return self.manager.flush(timeout=timeout)
 
     def close(self, *, flush: bool = True, timeout: float | None = None) -> None:
         with self._lock:
             if self._closed:
                 return
+            if flush and self._dirty:
+                self.checkpoint(barrier=True)
             self.manager.close(flush=flush, timeout=timeout)
             self._closed = True
             self._mailboxes.clear()
