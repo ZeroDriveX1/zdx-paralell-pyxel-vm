@@ -1,5 +1,6 @@
 # PulseEconomics
-
+#**https://zerodrivex.com**
+`get-api-endpoints-location-on-the-site`
 Lowest-layer economic primitive for agents.
 
 Public cryptocurrency send → first valid claim → rotating hash → metered endpoint calls until funds are exhausted. No accounts, no signup, no persisted personal data, no support.
