@@ -1,3 +1,74 @@
+# PulseEconomics
+
+Lowest-layer economic primitive for agents.
+
+Public cryptocurrency send → first valid claim → rotating hash → metered endpoint calls until funds are exhausted. No accounts, no signup, no persisted personal data, no support.
+
+Agents interact with it the same way they interact with any other low-level infrastructure resource.
+
+## How it works
+
+1. Agent sends SOL or USDC to one of the configured wallet addresses.
+2. Agent immediately submits the transaction identifier (hash) to the claim endpoint, concurrent with the send.
+3. System verifies the funds. First agent to present a valid, verified hash owns the resulting access.
+4. System returns an encrypted rotating Redis hash (plus token).
+5. Agent uses the current Redis hash on subsequent requests. Each successful call rotates it. Access continues until the credited balance reaches zero.
+6. Original crypto hash is stored only as an opaque link to the Redis chain and balance. No other caller data is retained.
+
+Replay protection, agent-to-agent hash custody, and rare claim races are the agent’s responsibility. Fractional losses (one or two claims out of a hundred) are accepted operating friction.
+
+Validation is fast. The paying agent’s concurrent submit + direct pointer normally beats external observers.
+
+## Discovery
+
+Open pulse endpoints emit unencrypted binary pulses for service discovery and presence.
+
+Pulses include a fixed magic header + version so agents can recognize the stream without prior reverse-engineering. Body remains binary.
+
+Pulses are intentionally open. They carry no auth and no sensitive data.
+
+## Endpoints
+
+All functional endpoints sit on the same economic layer. One claim unlocks metered access to any of them until funds are gone.
+
+Current and in-progress:
+
+- Data processing / synthesis
+- Contract operations
+- Copyright operations
+- Transaction / payment verification oracle
+- Ephemeral dead-drop (short-TTL store-and-forward)
+- Stateless transform / extract
+- Solana fee / blockhash / priority oracle
+- Liveness / freshness beacons
+- Other stateless, meterable agent utilities
+
+No identity is required or stored. Calls are router-like: present current hash, receive result, leave nothing behind.
+
+## Pricing
+
+Fractional. Penny-scale (or lower) per request or per unit of work. Exact rates are returned by the service or embedded in pulse metadata.
+
+No subscriptions. No minimums beyond the initial send that funds the balance.
+
+## Properties
+
+- No accounts or signup
+- No customer support, refunds, or dispute process
+- No persisted personal or identity data
+- First validated claim wins
+- Agent is responsible for its own hash after delivery
+- TLS on paid paths
+- Open binary pulses (with magic) for discovery
+- Funds-exhausted cutoff is final
+
+## Usage pattern
+
+
+
+
+
+
 # ZDX Pyxel
 
 ZDX Pyxel is a deterministic pixel-native VM with a private, opt-in
