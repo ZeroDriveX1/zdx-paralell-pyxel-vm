@@ -35,7 +35,7 @@ interface AndroidVmAdapter {
     fun execute(request: AndroidVmExecutionRequest, cancellation: AndroidVmCancellation): JSONObject
 }
 
-/** Registry intentionally contains no Pyxel adapter until one is signed and reviewed. */
+/** Only adapters compiled into the installed APK may be registered. */
 class AndroidVmAdapterRegistry(private val adapters: Map<String, AndroidVmAdapter> = emptyMap()) {
     fun advertised(): JSONArray = JSONArray(adapters.values.map { it.manifest.advertised() })
 
@@ -48,6 +48,12 @@ class AndroidVmAdapterRegistry(private val adapters: Map<String, AndroidVmAdapte
         if (adapter.manifest.protocolVersion != ANDROID_VM_ADAPTER_PROTOCOL) {
             throw UnsupportedOperationException("Android VM adapter protocol mismatch")
         }
+        val required = metadata?.optJSONArray("required_android_capabilities") ?: JSONArray()
+        for (index in 0 until required.length()) {
+            require(required.getString(index) in adapter.manifest.capabilities) { "adapter capability is unavailable" }
+        }
+        val artifactType = metadata?.optString("artifact_type", "pyxel-frame-v1") ?: "pyxel-frame-v1"
+        if (adapterId == AndroidPyxelAdapter.ID) require(artifactType in adapter.manifest.artifactTypes)
         return adapter
     }
 }

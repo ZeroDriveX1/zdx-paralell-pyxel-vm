@@ -3,8 +3,9 @@
 The APK is a private, opt-in mesh node. It persists a Keystore-backed node
 identity, discovers device capabilities, registers over authenticated TLS,
 polls for leases, receives task artifacts in resumable chunks, verifies the
-final SHA-256, and reports bounded probe results or an explicit fail-closed
-unsupported-execution result.
+final SHA-256, and executes explicitly negotiated static RGB Pyxel tasks in a
+permissionless isolated process. Results carry the input digest, adapter identity,
+registers and shared memory, signed by the host node identity.
 
 Compute is disabled by default. Idle-only now means the device is not actively
 interactive (screen/user activity), rather than Android Doze mode. Charging,
@@ -97,8 +98,7 @@ after verification failure.
 
 ## Execution boundary
 
-The checked-in APK does not embed the Python/Pyxel VM. It therefore rejects
-ordinary Pyxel tasks rather than pretending to execute them. It can run the
-explicitly marked bounded artifact-integrity probe and return its verified
-result. Linux/VPS workers remain the Pyxel execution path until a separately
-signed Android VM adapter is added and validated on devices.
+The APK includes a Kotlin implementation of the bounded desktop opcode subset.
+See [the adapter contract](../docs/ANDROID_VM_ADAPTER_CONTRACT.md) for task
+metadata, limits, supported instructions and device-validation requirements.
+It does not embed Python or run arbitrary Linux/Windows software.

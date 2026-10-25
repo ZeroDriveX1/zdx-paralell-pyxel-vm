@@ -55,6 +55,21 @@ class ZDXServer(_chunked.ZDXServer):
         inner = signed_claim.get("result", {})
         if inner.get("task_id") != task_id or not inner.get("adapter_id") or not inner.get("adapter_manifest_sha256"):
             raise PermissionError("result attestation task or adapter identity is missing")
+        running = self.compute._state["running"].get(task_id)
+        if not running or running.get("worker_id") != peer_id:
+            raise PermissionError("result is not bound to this worker's lease")
+        task = running["task"]
+        requested = task.get("metadata", {}).get("android_vm_adapter_id")
+        if not requested and task.get("metadata", {}).get("android_bounded_probe") is True:
+            requested = "zdx.integrity-probe"
+        if inner.get("adapter_id") != requested or inner.get("adapter_protocol_version") != 1:
+            raise PermissionError("result adapter does not match task")
+        if inner.get("input_artifact_sha256") != task.get("artifact_digest"):
+            raise PermissionError("result input digest does not match task")
+        if requested == "zdx.pyxel.android":
+            from zdx_android_vm import MANIFEST_SHA256
+            if inner.get("adapter_manifest_sha256") != MANIFEST_SHA256:
+                raise PermissionError("unrecognized Android Pyxel adapter manifest")
 
     def _record_compute_deltas(self, before: dict, after: dict, origin: str) -> None:
         super()._record_compute_deltas(before, after, origin)
@@ -73,6 +88,11 @@ class ZDXServer(_chunked.ZDXServer):
     def _handle_compute(self, conn, message):
         if message.kind == "compute_result":
             result = message.payload.get("result", {})
+            worker = self.compute._state["workers"].get(message.peer_id, {})
+            if worker.get("capabilities", {}).get("platform") == "android" and (
+                not isinstance(result, dict) or not result.get("attestation_signature")
+            ):
+                raise PermissionError("Android compute results require attestation")
             if isinstance(result, dict) and result.get("attestation_signature"):
                 self._verify_android_result(message.peer_id, str(message.payload.get("task_id", "")), result)
         super()._handle_compute(conn, message)
