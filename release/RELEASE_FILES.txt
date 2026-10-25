@@ -8,6 +8,10 @@ TODO.md
 TEST_PLAN.md
 MANIFEST.in
 setup.py
+pyproject.toml
+requirements.txt
+requirements-security.txt
+Dockerfile
 docs/USER_GUIDE.md
 docs/DISTRIBUTED_DEPLOYMENT.md
 docs/ANDROID_VM_ADAPTER_CONTRACT.md
@@ -27,6 +31,7 @@ zdx_worker.py
 zdx_worker_core.py
 zdx_compute.py
 zdx_compute_core.py
+zdx_android_vm.py
 zdx_resource_policy.py
 zdx_capabilities.py
 zdx_network.py
@@ -63,6 +68,10 @@ android/app/src/main/res/values/styles.xml
 android/app/src/main/java/com/zerodrivex/zdxnode/AndroidResultAttestor.kt
 android/app/src/main/java/com/zerodrivex/zdxnode/AndroidTaskExecutor.kt
 android/app/src/main/java/com/zerodrivex/zdxnode/AndroidVmAdapterContract.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/AndroidPyxelAdapter.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/CanonicalJson.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/PyxelEngine.kt
+android/app/src/main/java/com/zerodrivex/zdxnode/PyxelIsolatedService.kt
 android/app/src/main/java/com/zerodrivex/zdxnode/CapabilityAdvertisement.kt
 android/app/src/main/java/com/zerodrivex/zdxnode/DeviceCapabilityCollector.kt
 android/app/src/main/java/com/zerodrivex/zdxnode/MainActivity.kt
