@@ -1,2 +1,3 @@
 numpy>=1.24
-Pillow>=10
+# 13.0.0 fixes the APNG pre-bomb-check allocation (CVE-2026-112399).
+Pillow>=13.0.0

@@ -60,6 +60,12 @@ extensions = [
 setup(
     name="open-pyxel",
     version="1.0.0",
+    python_requires=">=3.11",
+    install_requires=[
+        line.strip()
+        for line in Path(__file__).with_name("requirements.txt").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ],
     description="Parallel Pyxel VM — pixel-native virtual machine (open source)",
     packages=find_packages(exclude=["test*"]),
     py_modules=_TOP_LEVEL_MODULES,
