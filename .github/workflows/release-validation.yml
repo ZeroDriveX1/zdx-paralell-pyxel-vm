@@ -107,4 +107,9 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: gradle -p android :app:connectedDebugAndroidTest --stacktrace
+          script: |
+            gradle -p android :app:connectedDebugAndroidTest --stacktrace
+            adb exec-out run-as com.zerodrivex.zdxnode cat files/pyxel-attestation-test.json > "$RUNNER_TEMP/pyxel-attestation-test.json"
+            python3 -m venv "$RUNNER_TEMP/pyxel-verifier"
+            "$RUNNER_TEMP/pyxel-verifier/bin/python" -m pip install -r requirements-security.txt
+            PYTHONPATH=. "$RUNNER_TEMP/pyxel-verifier/bin/python" tests/verify_android_attestation.py "$RUNNER_TEMP/pyxel-attestation-test.json"
