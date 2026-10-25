@@ -6,7 +6,8 @@ data class MeshSettings(
     val host: String = "",
     val port: Int = 8765,
     val enabled: Boolean = false,
-    val caCertificatePem: String = ""
+    val caCertificatePem: String = "",
+    val autoDiscover: Boolean = true
 ) {
     fun transportConfig() = ZdxMeshConfig(host.trim(), port, enabled, caCertificatePem.trim())
 }
@@ -18,7 +19,8 @@ class MeshSettingsStore(context: Context) {
         host = preferences.getString("host", "") ?: "",
         port = preferences.getInt("port", 8765),
         enabled = preferences.getBoolean("enabled", false),
-        caCertificatePem = preferences.getString("ca_certificate_pem", "") ?: ""
+        caCertificatePem = preferences.getString("ca_certificate_pem", "") ?: "",
+        autoDiscover = preferences.getBoolean("auto_discover", true)
     )
 
     fun save(settings: MeshSettings) {
@@ -27,6 +29,7 @@ class MeshSettingsStore(context: Context) {
             .putString("host", settings.host.trim())
             .putInt("port", settings.port)
             .putBoolean("enabled", settings.enabled)
+            .putBoolean("auto_discover", settings.autoDiscover)
             .putString("ca_certificate_pem", settings.caCertificatePem.trim())
             .apply()
     }

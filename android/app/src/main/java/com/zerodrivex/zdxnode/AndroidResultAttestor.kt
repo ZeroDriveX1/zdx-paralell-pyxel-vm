@@ -46,6 +46,9 @@ class AndroidResultAttestor(private val context: Context) {
     private fun sign(value: String): String = Signature.getInstance("Ed25519").run {
         initSign(keyPair.private); update(value.toByteArray(Charsets.UTF_8)); Base64.encodeToString(sign(), Base64.NO_WRAP)
     }
+    fun enrollmentFingerprint(): String = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(publicKeyPem().toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
+
     private fun publicKeyPem(): String = "-----BEGIN PUBLIC KEY-----\n${Base64.encodeToString(keyPair.public.encoded, Base64.NO_WRAP)}\n-----END PUBLIC KEY-----\n"
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     private fun canonical(value: JSONObject): String = CanonicalJson.encode(value)

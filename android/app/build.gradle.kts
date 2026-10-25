@@ -4,7 +4,7 @@ plugins {
 }
 
 android { namespace = "com.zerodrivex.zdxnode"; compileSdk = 35; buildToolsVersion = "35.0.0"
-    defaultConfig { applicationId = "com.zerodrivex.zdxnode"; minSdk = 26; targetSdk = 35; versionCode = 2; versionName = "1.1.0"
+    defaultConfig { applicationId = "com.zerodrivex.zdxnode"; minSdk = 26; targetSdk = 35; versionCode = 3; versionName = "1.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {

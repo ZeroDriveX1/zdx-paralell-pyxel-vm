@@ -26,7 +26,8 @@ data class ZdxMeshConfig(
     val host: String,
     val port: Int,
     val enabled: Boolean = false,
-    val caCertificatePem: String = ""
+    val caCertificatePem: String = "",
+    val upgradePath: String = ""
 ) {
     fun isConfigured(): Boolean = enabled && host.isNotBlank() && port in 1..65535
 }
@@ -67,8 +68,32 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
         socket = ssl
         input = BufferedInputStream(ssl.inputStream)
         output = BufferedOutputStream(ssl.outputStream)
+        if (config.upgradePath.isNotEmpty()) upgradeConnection()
         val ack = request("identity", identityPayload())
-        check(ack.optString("kind") == "identity_ack") { "mesh identity was rejected" }
+        check(ack.optString("kind") == "identity_ack") {
+            if (ack.optString("kind") == "enrollment_pending") "Enrollment pending: approve this device on the coordinator"
+            else "mesh identity was rejected"
+        }
+    }
+
+    private fun upgradeConnection() {
+        require(config.upgradePath == "/zdx/mesh") { "invalid mesh upgrade path" }
+        val out = output ?: error("mesh is not connected")
+        out.write(("GET ${config.upgradePath} HTTP/1.1\r\nHost: ${config.host}:${config.port}\r\n" +
+            "Connection: Upgrade\r\nUpgrade: zdx-mesh/1\r\n\r\n").toByteArray(Charsets.US_ASCII))
+        out.flush()
+        val stream = input ?: error("mesh is not connected")
+        val header = java.io.ByteArrayOutputStream()
+        var last = ""
+        while (!last.endsWith("\r\n\r\n")) {
+            val value = stream.read()
+            if (value < 0 || header.size() >= 8192) throw IOException("invalid mesh upgrade response")
+            header.write(value)
+            last = (last + value.toChar()).takeLast(4)
+        }
+        val lines = header.toString("US-ASCII").split("\r\n")
+        check(lines.first().matches(Regex("HTTP/1[.][01] 101(?: .*)?")) &&
+            lines.any { it.equals("Upgrade: zdx-mesh/1", ignoreCase = true) }) { "mesh HTTPS gateway rejected upgrade" }
     }
 
     @Synchronized fun close() {

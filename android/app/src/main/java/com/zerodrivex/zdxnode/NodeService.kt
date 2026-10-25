@@ -25,6 +25,7 @@ class NodeService : Service() {
     private lateinit var workEvents: WorkEventStore
     private val handler = Handler(Looper.getMainLooper())
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val bootstrap = MeshBootstrap()
     private val cycleActive = AtomicBoolean(false)
     private val serviceActive = AtomicBoolean(false)
     @Volatile private var retryDelayMs = BASE_RETRY_MS
@@ -35,12 +36,12 @@ class NodeService : Service() {
             if (!serviceActive.get()) return
             val settings = meshStore.load()
             var cycleStarted = false
-            if (settings.enabled && settings.transportConfig().isConfigured() && cycleActive.compareAndSet(false, true)) {
+            if (settings.enabled && (settings.autoDiscover || settings.transportConfig().isConfigured()) && cycleActive.compareAndSet(false, true)) {
                 cycleStarted = true
                 ioExecutor.execute { runMeshCycle(settings) }
             } else if (!settings.enabled) {
                 updateStatus(false, "disabled", workState = "DISABLED")
-            } else if (!settings.transportConfig().isConfigured()) {
+            } else if (!settings.autoDiscover && !settings.transportConfig().isConfigured()) {
                 updateStatus(false, "mesh not configured", workState = "UNCONFIGURED")
             }
             if (!cycleStarted && serviceActive.get()) {
@@ -104,9 +105,11 @@ class NodeService : Service() {
         }
         var taskId = ""
         var leaseId: String? = null
-        val nodeTransport = ZdxMeshTransport(this, settings.transportConfig())
-        transport = nodeTransport
+        var nodeTransport: ZdxMeshTransport? = null
         try {
+            val connection = if (settings.autoDiscover) bootstrap.resolve() else settings.transportConfig()
+            nodeTransport = ZdxMeshTransport(this, connection)
+            transport = nodeTransport
             val policy = policyStore.load()
             recordWork("CONNECTING", "registering node and capabilities", direction = "outgoing")
             val capability = ZdxProtocol(this).capabilityReportJson()
@@ -210,19 +213,19 @@ class NodeService : Service() {
             updateStatus(true, "completed $taskId · ${elapsed}ms", workState = "COMPLETED", taskId = taskId, terminal = true)
             artifact.delete()
         } catch (_: ZdxMeshPreemptedException) {
-            if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, "Android became busy or stopped charging", leaseId)
+            if (taskId.isNotBlank() && nodeTransport != null) safeRelease(nodeTransport, taskId, "Android became busy or stopped charging", leaseId)
             recordWork("RELEASED", "device became active or charging/policy changed", taskId.takeIf { it.isNotBlank() }, "outgoing")
             updateStatus(false, "task yielded to device workload", workState = "RELEASED", taskId = taskId, terminal = true)
         } catch (cancelled: AndroidVmExecutionCancelledException) {
-            if (taskId.isNotBlank()) safeRelease(nodeTransport, taskId, cancelled.message ?: "Android execution cancelled", leaseId)
+            if (taskId.isNotBlank() && nodeTransport != null) safeRelease(nodeTransport, taskId, cancelled.message ?: "Android execution cancelled", leaseId)
             recordWork("RELEASED", cancelled.message ?: "execution cancelled by resource policy", taskId.takeIf { it.isNotBlank() }, "outgoing")
             updateStatus(false, "task yielded to device workload", workState = "RELEASED", taskId = taskId, terminal = true)
         } catch (timeout: AndroidVmExecutionTimeoutException) {
-            if (taskId.isNotBlank()) safeFail(nodeTransport, taskId, timeout.message ?: "Android execution timed out", leaseId)
+            if (taskId.isNotBlank() && nodeTransport != null) safeFail(nodeTransport, taskId, timeout.message ?: "Android execution timed out", leaseId)
             recordWork("FAILED", timeout.message ?: "execution timeout", taskId.takeIf { it.isNotBlank() }, "outgoing")
             updateStatus(true, "task failed: execution timeout", workState = "FAILED", taskId = taskId, terminal = true)
         } catch (unsupported: UnsupportedOperationException) {
-            if (taskId.isNotBlank()) safeFail(nodeTransport, taskId, unsupported.message ?: "unsupported Android execution", leaseId)
+            if (taskId.isNotBlank() && nodeTransport != null) safeFail(nodeTransport, taskId, unsupported.message ?: "unsupported Android execution", leaseId)
             recordWork("FAILED", unsupported.message ?: "Android VM adapter unavailable", taskId.takeIf { it.isNotBlank() }, "outgoing")
             updateStatus(true, "task rejected: Android VM adapter unavailable", workState = "FAILED", taskId = taskId, terminal = true)
         } catch (error: Exception) {
@@ -232,7 +235,7 @@ class NodeService : Service() {
             recordWork("ERROR", "${error.javaClass.simpleName}" + if (detail.isBlank()) "" else ": $detail", taskId.takeIf { it.isNotBlank() })
             updateStatus(false, "mesh unavailable: ${error.javaClass.simpleName}" + if (detail.isBlank()) "" else " ($detail)", workState = "ERROR", taskId = taskId)
         } finally {
-            nodeTransport.close()
+            nodeTransport?.close()
             transport = null
             cycleActive.set(false)
             if (serviceActive.get()) {

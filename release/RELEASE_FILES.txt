@@ -87,3 +87,7 @@ android/app/src/main/java/com/zerodrivex/zdxnode/ZdxProtocol.kt
 android/app/src/main/java/com/zerodrivex/zdxnode/accelerator/AcceleratorDetector.kt
 android/app/src/main/java/com/zerodrivex/zdxnode/accelerator/GpuCapability.kt
 android/app/src/main/java/com/zerodrivex/zdxnode/accelerator/NpuCapability.kt
+
+zdx_bootstrap.py
+packaging/systemd/zdx-coordinator.service
+packaging/nginx/zdx-mesh.conf
