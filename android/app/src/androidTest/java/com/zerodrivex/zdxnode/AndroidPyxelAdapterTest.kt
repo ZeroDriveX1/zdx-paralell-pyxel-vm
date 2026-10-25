@@ -46,7 +46,9 @@ class AndroidPyxelAdapterTest {
             // Android's Keystore provider does not import Ed25519 X.509 keys.
             // CI exports this public claim and verifies it using the actual Python
             // coordinator verifier, rather than relying on a second Android signer.
-            File(context.filesDir, "pyxel-attestation-test.json").writeText(claim.toString())
+            android.util.Log.i("ZDXInterop", "CLAIM=" + android.util.Base64.encodeToString(
+                claim.toString().toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP
+            ))
         } finally { artifact.delete() }
     }
 }

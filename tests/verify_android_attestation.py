@@ -1,5 +1,6 @@
 """Verify a real emulator's signed VM output using the coordinator's verifier."""
 
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -10,7 +11,11 @@ from zdx_ed25519_signer import verify_ed25519_signature
 
 
 def main():
-    claim = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+    claims = [line.removeprefix("CLAIM=") for line in lines if line.startswith("CLAIM=")]
+    if not claims:
+        raise ValueError("emulator did not export a signed test claim")
+    claim = json.loads(base64.b64decode(claims[-1], validate=True).decode("utf-8"))
     signed = {key: claim[key] for key in ("attestation_version", "node_id", "result", "result_sha256")}
     if not verify_ed25519_signature(claim["public_key"], signed, claim["attestation_signature"]):
         raise ValueError("coordinator rejected real Android signature")
