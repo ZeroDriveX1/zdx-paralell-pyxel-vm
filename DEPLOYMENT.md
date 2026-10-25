@@ -6,7 +6,17 @@ Pass 14 produced TLS-required coordinator and worker entrypoints plus packaging 
 
 ## Prerequisites
 
-Use Python 3.10 or newer, `cryptography`, a private CA, distinct coordinator and worker certificates, and Ed25519 application identities. Certificates need the correct server/client extended-key usages and coordinator DNS/IP subject alternative names. Keep private keys readable only by the service account.
+Use Python 3.11 or newer, Pillow 13.0.0 or newer, `cryptography`, a private CA, distinct coordinator and worker certificates, and Ed25519 application identities. Certificates need the correct server/client extended-key usages and coordinator DNS/IP subject alternative names. Keep private keys readable only by the service account.
+
+Existing environments must upgrade their installed dependencies with
+`python -m pip install --upgrade -r requirements.txt` and restart workers;
+rebuild and redeploy container images rather than assuming a source update
+patches running workers. Run `python -m PIL` in the actual worker environment
+to verify Pillow and its linked codec versions. Pillow 13.0.0 fixes
+CVE-2026-112399, an APNG memory allocation inside `Image.open()` before its
+decompression-bomb check. Keep host-enforced memory and CPU limits around
+decoding: VM instruction limits and checks after `Image.open()` do not bound
+the parser's work.
 
 ## Install
 
