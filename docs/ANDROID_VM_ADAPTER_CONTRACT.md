@@ -1,114 +1,111 @@
-# Android VM adapter contract
+# Android Pyxel execution contract
 
-This contract defines the boundary for a future signed Android Pyxel VM
-adapter. The current APK implements the registry, negotiation, bounded
-integrity probe, cancellation path, and result attestation, but intentionally
-does not register a Pyxel VM adapter. Ordinary Pyxel tasks therefore remain
-fail-closed.
+APK 1.1.0 (versionCode 2) includes `zdx.pyxel.android`, protocol 1. It executes
+real static RGB PNG programs with the desktop VM's default instruction mapping.
+It is a Kotlin interpreter, not a Python runtime or a Linux/Windows emulator.
+The existing integrity probe remains available for explicitly requested probes.
 
-## Contract version and manifest
+## Negotiated workload
 
-The protocol version is `1`. Every adapter must ship a signed manifest with:
+A task must be artifact-backed and explicitly include metadata:
 
 ```json
 {
-  "adapter_id": "zdx.pyxel.android",
-  "protocol_version": 1,
-  "artifact_types": ["pyxel-frame-v1"],
-  "max_artifact_bytes": 8388608,
-  "max_memory_mb": 512,
-  "max_runtime_seconds": 300,
-  "capabilities": ["pyxel-vm", "frame-hash", "checkpoint-yield"],
-  "manifest_sha256": "...",
-  "signature": "..."
+  "android_vm_adapter_id": "zdx.pyxel.android",
+  "artifact_type": "pyxel-frame-v1",
+  "execution_model": "pixel-frame",
+  "required_vm_features": ["pyxel-static-rgb-v1"],
+  "required_android_capabilities": ["pyxel-static-rgb-v1", "isolated-process"]
 }
 ```
 
-The signature is verified against an operator-controlled adapter release key.
-The manifest digest is included in every result claim. An adapter with an
-unknown ID, unsupported protocol, invalid signature, or incompatible limits is
-not admitted.
+The coordinator matches platform, adapter protocol and compiled manifest digest,
+requested capabilities, memory and runtime. It gives a phone at most one lease.
+Ordinary desktop jobs are not implicitly mobile-compatible. An explicitly
+Android-targeted job is not silently redirected to a desktop worker.
+The APK's local registry independently checks the request. The task's existing
+thread, memory and runtime fields still apply; use memory_mb >= 64.
 
-## Capability negotiation
+Supported instructions: NOP, SET_A/SET_REG, SET_B, NOT, ADD, SUB, MUL, DIV,
+COPY_OUT, IF_A_EQ, CMP, LOAD_MEM, STORE_MEM, VERIFY_FREQ, JMP and HALT.
+Registers and eight shared slots use the same byte arithmetic, column-major
+row ordering, skip consumption and first-JMP semantics as the desktop VM.
+The interpreter executes rows sequentially as the desktop reference does;
+this does not advertise GPU/NPU acceleration.
 
-Android capability registration includes:
+Unsupported: SAVE_STATE/frame chaining, custom opcode maps, spatial-png resident
+state, persistent VM checkpoints, host tools, arbitrary Python/shell programs,
+and network/filesystem instructions. Unsupported opcodes fail even in
+unreachable columns. Policy interruption releases the lease for a restart from
+the beginning; it does not claim checkpoint/resume support.
 
-- `android_vm_adapter_protocol`;
-- `android_vm_adapters`, containing only locally installed/verified adapters;
-- CPU count, total/available RAM, charging/battery state, GPU/Vulkan/OpenGL,
-  NPU/NNAPI facts, and safe memory/concurrency limits.
+## PNG and resource limits
 
-A task must explicitly request `metadata.android_vm_adapter_id` and may include
-`metadata.required_android_capabilities`. The scheduler must select only an
-adapter whose manifest satisfies the request and the node’s current profile.
-Missing metadata never implies a default adapter. The current built-in probe
-may be requested explicitly with `android_bounded_probe=true`.
+- At most 8 MiB of compressed input, 1,048,576 pixels, 4096 pixels per dimension,
+  32 executable rows, 4096 column steps and 300 seconds.
+- Only non-interlaced RGB8 PNG with IHDR, contiguous IDAT and IEND is accepted.
+  All CRCs and lengths are checked before native decoding. APNG, palettes,
+  profiles, EXIF, text, unknown chunks and trailing data are rejected.
+- The decoder is Android's OS-provided BitmapFactory/Skia stack, not Pillow.
+  Keep the device's Android security updates current. APK upgrades do not
+  replace the OS decoder.
+- A conservative compressed/raster working-set estimate must fit the task's
+  reservation, itself capped by operator policy and the adapter's 512 MiB cap.
+  This estimate is not a hard per-process OS memory quota; Android may still
+  kill the isolated process on memory pressure. Such a death fails the task.
+- Charging, screen-inactive/idle policy, free-memory reserve and service-stop
+  admission remain enabled. The host monitors cancellation every 100 ms while
+  waiting. Parsing and instructions also check a monotonic deadline.
 
-## Resource and isolation boundary
+## Isolation, artifact and adapter trust
 
-An adapter receives an immutable, verified artifact file inside the app-private
-`filesDir/zdx-downloads` directory. It receives no host path, URI, socket,
-secret, private key, or general filesystem handle. It may write only bounded
-result data returned through the adapter API.
+The host opens a read-only descriptor to a verified app-private artifact. The
+bound service runs with `isolatedProcess=true`, is not exported, has no app
+permissions and cannot read host identity keys or open network connections.
+It independently bounds reads, hashes the exact bytes, checks the full PNG
+container, decodes and executes. Only a bounded result crosses back to the host.
+Unbinding after completion, cancellation or timeout kills that dedicated
+process, including native decode. The host retains all transport and signing.
 
-The adapter must enforce all of these limits:
+This adapter is compiled into the operator-installed APK: trust comes from APK
+signing and a fixed manifest descriptor digest shared with the coordinator.
+The advertised signature label `apk-builtin` is **not** a detached signature or
+remote-code trust mechanism. There is no dynamic adapter installation path.
+Future separately distributed adapters require their own release-key verifier.
+The integrity probe retains its existing platform-builtin identity.
 
-- artifact size <= both the task/node limit and manifest limit;
-- memory reservation <= both the task policy and manifest limit;
-- runtime <= the task timeout and manifest maximum;
-- output/result <= the protocol result limit;
-- requested capabilities must be present in the node profile;
-- no network access from the adapter execution boundary;
-- no shell, dynamic code loading, or arbitrary remote code execution;
-- no execution after policy revocation, service stop, charging loss, or device
-  workload priority change.
+## Result acceptance
 
-## Cancellation and timeout
+The host node signs the result claim with its enrolled Ed25519 identity and
+signs the enclosing protocol message. The server checks both existing admission
+and claim signatures, task/worker lease ownership, requested adapter/protocol,
+compiled manifest digest and input artifact digest. The existing lease token
+check still runs before completion. A signature proves attribution, not that a
+worker computed an honest answer; independent result verification/redundancy
+remains a coordinator policy concern.
 
-The adapter receives an `AndroidVmCancellation` callback. It must check the
-callback between bounded work units and terminate promptly when it returns
-cancelled. Cancellation occurs when:
+The result includes task and artifact identity, adapter identity, registers,
+shared memory, clock/column steps, elapsed milliseconds and completed work.
+A phone does not self-enroll: operators must configure TLS and enroll its key.
+The existing Keystore Ed25519 provider must be supported by the device;
+unsupported providers fail closed rather than falling back to an unsigned node.
 
-- idle/charging/free-memory admission is revoked;
-- the foreground service is stopped or destroyed;
-- the host Android process is interrupted;
-- the task timeout expires.
+## Validation and rollout
 
-Policy cancellation yields/releases the lease so the task can resume. A hard
-execution timeout produces a failed result and contribution record. A transport
-failure leaves the lease recoverable for coordinator expiry/retry.
+Run JVM tests, Android lint/build and connected instrumentation:
 
-## Artifact I/O and verification
+```sh
+gradle -p android :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+gradle -p android :app:connectedDebugAndroidTest
+pytest -q tests/test_android_compute.py
+```
 
-The transport downloads into a durable `.part` checkpoint, resumes by offset
-after disconnect, obtains a fresh task-scoped grant, and verifies final
-SHA-256. The adapter must independently verify that the received file is inside
-the private directory and that its digest equals the task artifact digest before
-reading it. Corrupt, incomplete, oversized, or expired-grant transfers are
-discarded and never passed to an adapter.
-
-## Result attestation
-
-The returned result must include:
-
-- task ID and input artifact SHA-256;
-- adapter ID, protocol version, and manifest SHA-256;
-- verification result and completed work;
-- bounded execution timing and output/result digest.
-
-The Android node signs the result claim with its Keystore Ed25519 identity. The
-claim contains the public key, node ID, canonical result digest, and signature;
-the enclosing ZDX message is independently signed by the same node identity.
-The server must verify both signatures, the enrolled node key, the adapter
-manifest digest, and the task/lease binding before accepting contribution or
-result state.
-
-## Current implementation status
-
-Implemented now: versioned registry, capability advertisement, built-in bounded
-integrity probe, private artifact checks, timeout/cancellation boundary, and
-Keystore result attestation.
-
-Not registered: a Pyxel VM adapter. Until a separately reviewed adapter
-implements this contract and passes Android build/device tests, Linux remains
-the Pyxel execution platform and Android ordinary tasks are rejected.
+Shared golden vectors compare the Kotlin interpreter with the current Python
+reference. Tests cover PNG admission, loop/cancellation limits, task negotiation
+and signed result binding. Instrumentation decodes a desktop-compiled PNG and
+executes it through the isolated service, checking result bytes and isolated UID.
+Release validation runs this on an API 35 emulator. Physical-device charging,
+screen transitions, thermal/memory pressure, native decode interruption, signing
+provider support and a real enrolled-coordinator round trip still require device
+validation before fleet rollout. Install the new APK explicitly; merging source
+cannot update an already-installed app.

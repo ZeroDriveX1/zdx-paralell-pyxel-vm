@@ -23,3 +23,7 @@ shared_state.json
 brain_textures/
 challenge_frame.png
 program.png
+
+# Android local Gradle state
+android/.gradle/
+android/local.properties

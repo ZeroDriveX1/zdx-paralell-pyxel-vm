@@ -60,6 +60,7 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
         if (socket?.isConnected == true && socket?.isClosed == false) return
         check(isConfigured()) { "ZDX mesh endpoint is not configured" }
         val ssl = (buildSslContext().socketFactory.createSocket() as SSLSocket)
+        ssl.sslParameters = ssl.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
         ssl.connect(InetSocketAddress(config.host, config.port), 5_000)
         ssl.soTimeout = 15_000
         ssl.startHandshake()
@@ -237,7 +238,7 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
         preferences.edit().putLong("sequence", sequence).apply()
         val envelope = JSONObject().put("kind", kind).put("payload", payload)
             .put("request_id", UUID.randomUUID().toString()).put("version", 1)
-            .put("timestamp", System.currentTimeMillis() / 1000.0).put("peer_id", nodeId)
+            .put("timestamp", System.currentTimeMillis() / 1000).put("peer_id", nodeId)
             .put("sequence", current)
         envelope.put("signature", sign(canonical(envelope)))
         val bytes = envelope.toString().toByteArray(Charsets.UTF_8)
@@ -274,7 +275,8 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
             KeyPairGenerator.getInstance("Ed25519", "AndroidKeyStore").apply {
                 initialize(android.security.keystore.KeyGenParameterSpec.Builder(
                     KEY_ALIAS, android.security.keystore.KeyProperties.PURPOSE_SIGN
-                ).build())
+                ).setAlgorithmParameterSpec(java.security.spec.ECGenParameterSpec("ed25519"))
+                    .setDigests(android.security.keystore.KeyProperties.DIGEST_NONE).build())
                 generateKeyPair()
             }
         }
@@ -290,15 +292,5 @@ class ZdxMeshTransport(private val context: Context, private val config: ZdxMesh
         digest().joinToString("") { "%02x".format(it) }
     }
     private fun readFully(input: BufferedInputStream, target: ByteArray) { var offset = 0; while (offset < target.size) { val count = input.read(target, offset, target.size - offset); if (count < 0) throw IOException("mesh connection closed"); offset += count } }
-    private fun canonical(value: JSONObject): String = when (value) {
-        else -> canonicalValue(value)
-    }
-    private fun canonicalValue(value: Any?): String = when (value) {
-        null, JSONObject.NULL -> "null"
-        is JSONObject -> value.keys().asSequence().toList().sorted().joinToString(prefix = "{", postfix = "}") { key -> JSONObject.quote(key) + ":" + canonicalValue(value.get(key)) }
-        is JSONArray -> (0 until value.length()).joinToString(prefix = "[", postfix = "]") { canonicalValue(value.get(it)) }
-        is String -> JSONObject.quote(value)
-        is Boolean, is Number -> value.toString()
-        else -> JSONObject.quote(value.toString())
-    }
+    private fun canonical(value: JSONObject): String = CanonicalJson.encode(value)
 }
