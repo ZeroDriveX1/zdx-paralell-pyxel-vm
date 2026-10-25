@@ -224,9 +224,16 @@ class ComputeCoordinator:
             effective_cpu = max(0, effective_cpu - reserved_threads)
 
             candidates = sorted(self._state["queued"].values(), key=lambda item: (item["created_at"], item["task_id"]))
+            if capabilities.get("platform") == "android" and any(
+                record.get("worker_id") == worker_id for record in self._state["running"].values()
+            ):
+                return None
             worker_features = set(capabilities.get("vm_features", []) or [])
             for raw in candidates:
                 task = ComputeTask.from_dict(raw)
+                from zdx_android_vm import compatible_android_task
+                if not compatible_android_task(task, capabilities):
+                    continue
                 if task.memory_mb > effective_memory or task.threads > effective_cpu:
                     continue
                 required_features = set(task.metadata.get("required_vm_features", []) or [])

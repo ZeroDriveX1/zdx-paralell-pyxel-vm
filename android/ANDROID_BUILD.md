@@ -4,6 +4,11 @@ The Gradle app uses package `com.zerodrivex.zdxnode`, min SDK 26, target SDK
 35, and a foreground data-sync service. Build a signed release only on a
 trusted Android build host:
 
+Version 1.1.0 adds bounded Kotlin Pyxel execution. Use the same operator signing
+key as the installed app to preserve its identity and settings on update. The
+coordinator must also include the matching Android negotiation/result checks.
+Do not assume a newly generated CI debug key can update an existing signed APK.
+
 ```sh
 cd android
 export ZDX_ANDROID_KEYSTORE=/secure/zdx-release.jks

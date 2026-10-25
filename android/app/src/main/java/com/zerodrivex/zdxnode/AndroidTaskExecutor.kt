@@ -16,15 +16,20 @@ class AndroidVmExecutionTimeoutException(message: String) : Exception(message)
 class AndroidTaskExecutor(private val context: Context) {
     private val privateDirectory = File(context.filesDir, "zdx-downloads").canonicalFile
     private val probe = IntegrityProbeAdapter()
-    private val registry = AndroidVmAdapterRegistry(mapOf(probe.manifest.adapterId to probe))
+    private val pyxel = AndroidPyxelAdapter(context)
+    private val registry = AndroidVmAdapterRegistry(mapOf(probe.manifest.adapterId to probe, pyxel.manifest.adapterId to pyxel))
 
     fun advertisedAdapters() = registry.advertised()
 
     fun execute(task: JSONObject, artifact: File, policy: ResourcePolicy): JSONObject {
         val adapter = registry.resolve(task)
+        val memoryMb = task.getInt("memory_mb")
+        val maxSeconds = task.getInt("max_seconds")
+        require(memoryMb in 1..minOf(policy.memoryLimitMb, adapter.manifest.maxMemoryMb)) { "task exceeds memory limits" }
+        require(maxSeconds in 1..adapter.manifest.maxRuntimeSeconds) { "task exceeds runtime limit" }
         val request = AndroidVmExecutionRequest(
-            task = task, artifact = artifact.canonicalFile, memoryLimitMb = policy.memoryLimitMb,
-            maxRuntimeSeconds = task.optInt("max_seconds", 300).coerceIn(1, adapter.manifest.maxRuntimeSeconds),
+            task = task, artifact = artifact.canonicalFile, memoryLimitMb = memoryMb,
+            maxRuntimeSeconds = maxSeconds,
             privateArtifactDirectory = privateDirectory
         )
         require(request.artifact.parentFile == privateDirectory) { "artifact is outside private Android storage" }
