@@ -243,6 +243,8 @@ class EnrolledGatewayServer(ZDXServer):
                 raise PermissionError("node is not authorized to submit work")
 
     def _queue_pending_enrollment(self, conn, message, address):
+        if not isinstance(message.peer_id, str) or not 1 <= len(message.peer_id) <= 128:
+            raise PermissionError("invalid enrollment identity length")
         peers = json.loads(self.peers_file.read_text())
         self._peer_public_keys = peers
         self._enrolled_peers = set(peers)

@@ -126,3 +126,16 @@ def test_worker_enrollment_does_not_grant_coordinator_or_submission_role(tmp_pat
     message = ZDXMessage(kind=kind, payload={}, peer_id='worker', sequence=1).sign(worker)
     with pytest.raises(PermissionError):
         server._authenticate(message)
+
+
+def test_oversized_identity_rejected_before_pending_storage(tmp_path):
+    from zdx_bootstrap import EnrolledGatewayServer
+    from zdx_network import ZDXMessage
+    peers = tmp_path / 'peers.json'; peers.write_text('{}')
+    server = EnrolledGatewayServer(peers_file=peers, state_path=str(tmp_path / 'node.json'),
+        compute_state_path=str(tmp_path / 'compute.json'), artifact_root=str(tmp_path / 'artifacts'),
+        cluster_state_path=str(tmp_path / 'cluster.json'))
+    message = ZDXMessage(kind='identity', payload={}, peer_id='x' * 129)
+    with pytest.raises(PermissionError, match='identity length'):
+        server._queue_pending_enrollment(None, message, ('127.0.0.1', 1))
+    assert not (tmp_path / 'pending_enrollments.json').exists()
