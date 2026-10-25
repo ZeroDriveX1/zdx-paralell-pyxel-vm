@@ -38,7 +38,9 @@ class AndroidPyxelAdapterTest {
             val claim = AndroidResultAttestor(context).attest(result)
             val signature = android.util.Base64.decode(claim.getString("attestation_signature"), android.util.Base64.NO_WRAP)
             val pem = claim.getString("public_key").replace("-----BEGIN PUBLIC KEY-----", "").replace("-----END PUBLIC KEY-----", "")
-            val key = java.security.KeyFactory.getInstance("Ed25519").generatePublic(java.security.spec.X509EncodedKeySpec(android.util.Base64.decode(pem, android.util.Base64.DEFAULT)))
+            val store = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            val key = store.getCertificate("zdx-node-ed25519").publicKey
+            assertArrayEquals(key.encoded, android.util.Base64.decode(pem, android.util.Base64.DEFAULT))
             claim.remove("attestation_signature"); claim.remove("public_key")
             assertTrue(java.security.Signature.getInstance("Ed25519").run {
                 initVerify(key); update(CanonicalJson.encode(claim).toByteArray(Charsets.UTF_8)); verify(signature)
