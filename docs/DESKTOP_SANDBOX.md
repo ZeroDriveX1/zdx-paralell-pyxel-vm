@@ -54,3 +54,6 @@ in-memory pipes. Results exceeding the protocol limit fail closed.
 No existing deployment is assumed. This image is not a generic AI code
 execution environment, and is not a replacement for production container
 host hardening.
+
+Some Podman releases print a bare 64-character image ID (without `sha256:`).
+Normalize it by prefixing `sha256:` before configuring the worker.
