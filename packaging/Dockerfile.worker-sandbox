@@ -1,0 +1,12 @@
+# Build with Podman as the unprivileged worker account, then record the local
+# image ID (sha256:<64 hex>) in ZDX_SANDBOX_IMAGE. Do not deploy mutable tags.
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt /app/requirements.txt
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt
+COPY zdx_sandbox_entry.py zdx_compute_core.py zdx_parallel_vm.py zdx_spatial_frame.py zdx_storage.py zdx_checkpoint.py zdx_metrics.py /app/
+RUN mkdir -p /input && chmod 0555 /app /input && chmod 0444 /app/*.py
+ENV PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1
+# Rootless --userns=keep-id binds the request inputs to this UID at runtime.
+USER 65534:65534
+ENTRYPOINT ["python", "-I", "/app/zdx_sandbox_entry.py"]
