@@ -124,3 +124,52 @@ def test_current_lease_cannot_be_finalized_without_token(tmp_path, operation):
     with pytest.raises(ValueError, match="stale or invalid lease"):
         call()
     assert "t7" in queue.status()["running"]
+
+@pytest.mark.parametrize("operation", ["complete", "release", "fail"])
+def test_expired_lease_rejected_without_status_or_claim_sweep(tmp_path, monkeypatch, operation):
+    import zdx_compute_core as core
+
+    frame = tmp_path / "frame.png"
+    frame.write_bytes(b"x")
+    clock = [1000.0]
+    monkeypatch.setattr(core.time, "time", lambda: clock[0])
+    queue = make_queue(tmp_path, lease_seconds=20, max_attempts=2)
+    queue.register_worker("w1", {"cpu_count": 1})
+    queue.submit(make_task(frame, "expired", 200))
+    old = queue.claim("w1", 4096).metadata["lease_id"]
+    clock[0] = 1020.0  # Exact deadline: no intervening queue/status sweep.
+
+    if operation == "complete":
+        call = lambda: queue.complete("w1", "expired", {"late": True}, lease_id=old)
+    elif operation == "release":
+        call = lambda: queue.release("w1", "expired", "late", lease_id=old)
+    else:
+        call = lambda: queue.fail("w1", "expired", "late", lease_id=old)
+
+    with pytest.raises(ValueError, match="not leased"):
+        call()
+    state = queue.status()
+    assert "expired" in state["queued"]
+    assert "expired" not in state["running"]
+    assert "expired" not in state["completed"]
+    assert "expired" not in state["failed"]
+    assert state["attempts"]["expired"] == 1
+    assert ComputeCoordinator(str(tmp_path / "state.json")).status()["queued"]["expired"]
+
+
+def test_expired_lease_attempt_cap_is_durable(tmp_path, monkeypatch):
+    import zdx_compute_core as core
+
+    clock = [2000.0]
+    monkeypatch.setattr(core.time, "time", lambda: clock[0])
+    frame = tmp_path / "f.png"
+    frame.write_bytes(b"x")
+    queue = make_queue(tmp_path, lease_seconds=5, max_attempts=1)
+    queue.register_worker("w1", {"cpu_count": 1})
+    queue.submit(make_task(frame, "terminal", 100))
+    token = queue.claim("w1", 4096).metadata["lease_id"]
+    clock[0] += 5
+    with pytest.raises(ValueError, match="not leased"):
+        queue.complete("w1", "terminal", {}, lease_id=token)
+    assert queue.status()["failed"]["terminal"]["error"] == "lease expired"
+    assert "terminal" not in queue.status()["queued"]

@@ -259,6 +259,10 @@ class ComputeCoordinator:
         if len(json.dumps(result, separators=(",", ":")).encode("utf-8")) > MAX_RESULT_BYTES:
             raise ValueError("task result exceeds maximum size")
         with self._lock:
+            # Expire before authorizing any terminal transition; polling is not
+            # a prerequisite for invalidating a stale lease.
+            if self._requeue_expired_locked():
+                self._save()
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")
@@ -272,6 +276,10 @@ class ComputeCoordinator:
 
     def release(self, worker_id: str, task_id: str, reason: str, lease_id: Optional[str] = None) -> None:
         with self._lock:
+            # Expire before authorizing any terminal transition; polling is not
+            # a prerequisite for invalidating a stale lease.
+            if self._requeue_expired_locked():
+                self._save()
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")
@@ -293,6 +301,10 @@ class ComputeCoordinator:
 
     def fail(self, worker_id: str, task_id: str, error: str, lease_id: Optional[str] = None) -> None:
         with self._lock:
+            # Expire before authorizing any terminal transition; polling is not
+            # a prerequisite for invalidating a stale lease.
+            if self._requeue_expired_locked():
+                self._save()
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")

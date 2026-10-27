@@ -4,6 +4,8 @@ APK 1.1.1 (versionCode 3) includes `zdx.pyxel.android`, protocol 1. It executes
 real static RGB PNG programs with the desktop VM's default instruction mapping.
 It is a Kotlin interpreter, not a Python runtime or a Linux/Windows emulator.
 The existing integrity probe remains available for explicitly requested probes.
+The APK requires Android API 28+ for its Keystore Ed25519 policy; devices that
+cannot initialize the required provider still fail closed during enrollment.
 
 ## Negotiated workload
 
