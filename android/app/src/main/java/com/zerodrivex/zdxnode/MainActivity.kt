@@ -52,6 +52,7 @@ class MainActivity : Activity() {
         val idle = Switch(this).apply { isChecked = policy.idleOnly }
         val charging = Switch(this).apply { isChecked = policy.requireCharging }
         val meshEnabled = Switch(this).apply { isChecked = mesh.enabled }
+        val automaticMesh = Switch(this).apply { isChecked = mesh.autoDiscover }
         val memoryLimit = edit("Compute memory limit (MB)", policy.memoryLimitMb.toString(), false).apply {
             inputType = InputType.TYPE_CLASS_NUMBER
         }
@@ -93,6 +94,8 @@ class MainActivity : Activity() {
             setPadding(0, dp(4), 0, dp(16))
         })
 
+        val enrollmentFingerprint = try { AndroidResultAttestor(this).enrollmentFingerprint() }
+            catch (error: Exception) { "Unavailable: ${error.javaClass.simpleName}" }
         val identity = section("Node identity")
         identity.addView(label("Stable device identifier"))
         identity.addView(TextView(this).apply {
@@ -102,6 +105,12 @@ class MainActivity : Activity() {
             setTypeface(Typeface.MONOSPACE, Typeface.NORMAL)
             setTextColor(Color.rgb(31, 41, 55))
             setPadding(0, dp(6), 0, 0)
+        })
+        identity.addView(label("Enrollment key SHA-256"))
+        identity.addView(TextView(this).apply {
+            text = enrollmentFingerprint
+            setTextSize(12f)
+            setTextIsSelectable(true)
         })
         content.addView(identity, margins())
 
@@ -136,7 +145,8 @@ class MainActivity : Activity() {
         content.addView(participation, margins())
 
         val meshSection = section("Mesh connection")
-        meshSection.addView(label("Use the server/peer hostname and private CA certificate. The Ed25519 node key stays in Android Keystore; no key path is needed here."))
+        addSwitch(meshSection, automaticMesh, "Automatic ZDX mesh setup", "Discover approved coordinators securely over HTTPS. No CA paste is needed; manual fields below apply only when this is off.")
+        meshSection.addView(label("Node enrollment is still required. The Ed25519 node key stays in Android Keystore."))
         meshSection.addView(host, fieldMargins())
         meshSection.addView(port, fieldMargins())
         meshSection.addView(ca, fieldMargins())
@@ -154,7 +164,7 @@ class MainActivity : Activity() {
                 memoryLimitMb = memoryLimitMb,
                 minFreeMemoryMb = minFreeMemoryMb
             ))
-            meshStore.save(MeshSettings(host.text.toString(), port.text.toString().toIntOrNull() ?: 8765, meshEnabled.isChecked, ca.text.toString()))
+            meshStore.save(MeshSettings(host.text.toString(), port.text.toString().toIntOrNull() ?: 8765, meshEnabled.isChecked, ca.text.toString(), automaticMesh.isChecked))
             setLocalStatus("Settings saved. Start the background service when ready.")
             true
         } catch (error: IllegalArgumentException) {

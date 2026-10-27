@@ -35,7 +35,8 @@ class AndroidResultAttestor(private val context: Context) {
             KeyPairGenerator.getInstance("Ed25519", "AndroidKeyStore").apply {
                 initialize(android.security.keystore.KeyGenParameterSpec.Builder(
                     KEY_ALIAS, android.security.keystore.KeyProperties.PURPOSE_SIGN
-                ).build())
+                ).setAlgorithmParameterSpec(java.security.spec.ECGenParameterSpec("ed25519"))
+                    .setDigests(android.security.keystore.KeyProperties.DIGEST_NONE).build())
                 generateKeyPair()
             }
         }
@@ -45,15 +46,10 @@ class AndroidResultAttestor(private val context: Context) {
     private fun sign(value: String): String = Signature.getInstance("Ed25519").run {
         initSign(keyPair.private); update(value.toByteArray(Charsets.UTF_8)); Base64.encodeToString(sign(), Base64.NO_WRAP)
     }
+    fun enrollmentFingerprint(): String = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(publicKeyPem().toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
+
     private fun publicKeyPem(): String = "-----BEGIN PUBLIC KEY-----\n${Base64.encodeToString(keyPair.public.encoded, Base64.NO_WRAP)}\n-----END PUBLIC KEY-----\n"
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
-    private fun canonical(value: JSONObject): String = canonicalValue(value)
-    private fun canonicalValue(value: Any?): String = when (value) {
-        null, JSONObject.NULL -> "null"
-        is JSONObject -> value.keys().asSequence().toList().sorted().joinToString(prefix = "{", postfix = "}") { key -> JSONObject.quote(key) + ":" + canonicalValue(value.get(key)) }
-        is JSONArray -> (0 until value.length()).joinToString(prefix = "[", postfix = "]") { canonicalValue(value.get(it)) }
-        is String -> JSONObject.quote(value)
-        is Boolean, is Number -> value.toString()
-        else -> JSONObject.quote(value.toString())
-    }
+    private fun canonical(value: JSONObject): String = CanonicalJson.encode(value)
 }

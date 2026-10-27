@@ -36,7 +36,7 @@ class ZdxProtocol(private val context: Context) {
         val snapshot = admission.snapshot()
         val policyBlock = admission.blockReason(policy, snapshot)
         val cpuCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-        val safeConcurrency = (cpuCount / 2).coerceIn(1, 4)
+        val safeConcurrency = 1 // one isolated VM at a time
         return JSONObject()
             .put("node_id", nodeId).put("platform", "android").put("protocol", 1)
             .put("node_mode", participationMode().name.lowercase())
@@ -55,7 +55,8 @@ class ZdxProtocol(private val context: Context) {
             .put("charging", capability.charging).put("battery_percent", capability.batteryPercent)
             .put("gpu", JSONObject().put("vulkan", capability.gpu.vulkanSupported).put("open_gl", capability.gpu.openGlVersion))
             .put("npu", JSONObject().put("available", capability.npu.available).put("nnapi_version", capability.npu.nnapiVersion))
-            .put("vm_features", JSONArray().put("artifact-sha256").put("bounded-admission"))
+            .put("vm_features", JSONArray().put("artifact-sha256").put("bounded-admission")
+                .put("pyxel-vm").put("verified-frame-execution").put(PyxelEngine.FEATURE))
             .put("android_vm_adapter_protocol", ANDROID_VM_ADAPTER_PROTOCOL)
             .put("android_vm_adapters", AndroidTaskExecutor(context).advertisedAdapters())
             .put("safe_limits", JSONObject()

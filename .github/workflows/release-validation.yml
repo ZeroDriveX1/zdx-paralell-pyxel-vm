@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt -r requirements-security.txt
+          pip install -c requirements-constraints.txt -r requirements-dev.txt -r requirements-security.txt
       - name: Compile all Python modules
         run: python -m compileall -q .
       - name: Run complete test suite
@@ -36,7 +36,7 @@ jobs:
           python-version: '3.11'
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt -r requirements-security.txt
+          pip install -c requirements-constraints.txt -r requirements-dev.txt -r requirements-security.txt
       - name: Repeat auth, re-auth, TLS and network-fault validation
         run: |
           for pass in 1 2 3; do
@@ -53,7 +53,7 @@ jobs:
           python-version: '3.11'
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt -r requirements-security.txt
+          pip install -c requirements-constraints.txt -r requirements-dev.txt -r requirements-security.txt
       - name: Repeat distributed compute, lease, RAM and spatial admission
         run: |
           for pass in 1 2 3; do
@@ -70,10 +70,39 @@ jobs:
           python-version: '3.11'
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt -r requirements-security.txt
+          pip install -c requirements-constraints.txt -r requirements-dev.txt -r requirements-security.txt
       - name: Validate persistence, corruption recovery and hard-kill behavior
         run: |
           pytest -q             test_persistence_integration.py             test_power_loss.py             test_storage.py             test_operational_validation.py
+
+
+  worker-sandbox-linux:
+    name: rootless-podman-sandbox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Provision local rootless OCI runtime
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends podman uidmap slirp4netns fuse-overlayfs
+          fi
+          podman --version
+          podman info --format '{{.Host.CgroupsVersion}}'
+      - name: Build immutable executor image
+        run: |
+          podman build -f packaging/Dockerfile.worker-sandbox -t localhost/zdx-pyxel-executor:ci .
+          image_id="$(podman image inspect localhost/zdx-pyxel-executor:ci --format '{{.Id}}')"
+          digest="${image_id#sha256:}"
+          [[ "$digest" =~ ^[[:xdigit:]]{64}$ ]] || exit 1
+          echo "ZDX_SANDBOX_IMAGE=sha256:$digest" >> "$GITHUB_ENV"
+      - name: Exercise real rootless sandbox with valid and malformed frames
+        run: |
+          python -m pip install -c requirements-constraints.txt -r requirements-dev.txt -r requirements-security.txt
+          python -m pytest -v tests/test_desktop_sandbox_integration.py
 
   android-release-check:
     runs-on: ubuntu-latest
@@ -87,7 +116,7 @@ jobs:
         with:
           gradle-version: '8.7'
       - name: Compile and lint Android node
-        run: gradle -p android :app:assembleDebug :app:lintDebug --stacktrace
+        run: gradle -p android :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --stacktrace
       - name: Upload debug APK and lint report
         uses: actions/upload-artifact@v4
         with:
@@ -95,3 +124,21 @@ jobs:
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/reports/lint-results-debug.html
+      - name: Enable KVM for emulator validation
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Exercise isolated PNG execution on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            gradle -p android :app:connectedDebugAndroidTest --stacktrace
+            adb logcat -d -v raw -s ZDXInterop:I > "$RUNNER_TEMP/pyxel-attestation-test.log"
+            python3 -m venv "$RUNNER_TEMP/pyxel-verifier"
+            "$RUNNER_TEMP/pyxel-verifier/bin/python" -m pip install -r requirements-security.txt
+            PYTHONPATH=. "$RUNNER_TEMP/pyxel-verifier/bin/python" tests/verify_android_attestation.py "$RUNNER_TEMP/pyxel-attestation-test.log"

@@ -35,10 +35,16 @@ The current tree already includes persistent trust/revocation state, TLS/mTLS-ca
 - independent protocol fuzzing/penetration testing beyond the repository fuzz/stress suites;
 - physical-device and multi-host adversarial validation.
 
-The worker does not execute arbitrary Python, shell commands, or user-supplied
-code. Its current workload is a local, hash-verified PNG frame. CPU and memory
-limits must be enforced by both the JSON policy and the host service manager;
-the policy alone cannot provide a hard CPU quota on every operating system.
+The worker does not accept arbitrary Python or shell programs. Production
+desktop frame execution is now routed through a disposable rootless Podman
+container with network namespace disabled, read-only rootfs, dropped Linux
+capabilities, no-new-privileges, an immutable image reference and independent
+cgroup memory/PID/CPU limits. The long-lived authenticated worker only transfers
+hash-verified artifacts and parses size-capped results. It never invokes the VM
+decoder in-process. Missing Podman, missing pinned image or unsupported runtime
+limits fail closed. Windows and macOS cannot run this Linux worker executor.
+Host-level service limits remain an additional guard, not a substitute for
+the per-task sandbox. See docs/DESKTOP_SANDBOX.md.
 
 Security decisions remain modular so deployments can choose appropriate trust levels.
 

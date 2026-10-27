@@ -224,9 +224,16 @@ class ComputeCoordinator:
             effective_cpu = max(0, effective_cpu - reserved_threads)
 
             candidates = sorted(self._state["queued"].values(), key=lambda item: (item["created_at"], item["task_id"]))
+            if capabilities.get("platform") == "android" and any(
+                record.get("worker_id") == worker_id for record in self._state["running"].values()
+            ):
+                return None
             worker_features = set(capabilities.get("vm_features", []) or [])
             for raw in candidates:
                 task = ComputeTask.from_dict(raw)
+                from zdx_android_vm import compatible_android_task
+                if not compatible_android_task(task, capabilities):
+                    continue
                 if task.memory_mb > effective_memory or task.threads > effective_cpu:
                     continue
                 required_features = set(task.metadata.get("required_vm_features", []) or [])
@@ -252,6 +259,10 @@ class ComputeCoordinator:
         if len(json.dumps(result, separators=(",", ":")).encode("utf-8")) > MAX_RESULT_BYTES:
             raise ValueError("task result exceeds maximum size")
         with self._lock:
+            # Expire before authorizing any terminal transition; polling is not
+            # a prerequisite for invalidating a stale lease.
+            if self._requeue_expired_locked():
+                self._save()
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")
@@ -265,6 +276,10 @@ class ComputeCoordinator:
 
     def release(self, worker_id: str, task_id: str, reason: str, lease_id: Optional[str] = None) -> None:
         with self._lock:
+            # Expire before authorizing any terminal transition; polling is not
+            # a prerequisite for invalidating a stale lease.
+            if self._requeue_expired_locked():
+                self._save()
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")
@@ -286,6 +301,10 @@ class ComputeCoordinator:
 
     def fail(self, worker_id: str, task_id: str, error: str, lease_id: Optional[str] = None) -> None:
         with self._lock:
+            # Expire before authorizing any terminal transition; polling is not
+            # a prerequisite for invalidating a stale lease.
+            if self._requeue_expired_locked():
+                self._save()
             running = self._state["running"].get(task_id)
             if running is None or running["worker_id"] != worker_id:
                 raise ValueError("task is not leased to this worker")
@@ -307,7 +326,9 @@ class ComputeCoordinator:
 
     def _validate_lease_locked(self, running: dict, lease_id: Optional[str]) -> None:
         expected = running.get("lease_id")
-        if lease_id is not None and expected != lease_id:
+        # New leases must always be presented. Only old persisted records that
+        # never had a lease ID may use the legacy no-token completion path.
+        if (expected is not None and lease_id != expected) or (expected is None and lease_id is not None):
             raise ValueError("stale or invalid lease")
 
     def _requeue_expired_locked(self) -> bool:

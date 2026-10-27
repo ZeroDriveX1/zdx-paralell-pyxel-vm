@@ -4,7 +4,9 @@ plugins {
 }
 
 android { namespace = "com.zerodrivex.zdxnode"; compileSdk = 35; buildToolsVersion = "35.0.0"
-    defaultConfig { applicationId = "com.zerodrivex.zdxnode"; minSdk = 26; targetSdk = 35; versionCode = 1; versionName = "1.0.0" }
+    defaultConfig { applicationId = "com.zerodrivex.zdxnode"; minSdk = 28; targetSdk = 35; versionCode = 3; versionName = "1.1.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -22,4 +24,11 @@ android { namespace = "com.zerodrivex.zdxnode"; compileSdk = 35; buildToolsVersi
         }
     }
     buildTypes { release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("release") } }
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

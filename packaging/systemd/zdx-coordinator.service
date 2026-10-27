@@ -1,20 +1,36 @@
 [Unit]
-Description=ZeroDriveX coordinator
+Description=ZDX authenticated coordinator and HTTPS mesh discovery
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=zdx
-Group=zdx
-EnvironmentFile=/etc/zdx/coordinator.env
-ExecStart=/usr/local/bin/zdx serve --port ${ZDX_PORT} --coordinator-key ${ZDX_COORDINATOR_KEY} --tls-ca ${ZDX_TLS_CA} --tls-cert ${ZDX_TLS_CERT} --tls-key ${ZDX_TLS_KEY}
+User=zdx-pyxel
+Group=zdx-pyxel
+WorkingDirectory=/opt/zdx-pyxel/runtime
+ExecStart=/opt/zdx-pyxel/venv/bin/python -m zdx_bootstrap --state-dir /var/lib/zdx-pyxel --node-id aws-coordinator-01 --public-host zerodrivex.com
 Restart=on-failure
-RestartSec=2
+RestartSec=5
+UMask=0077
+StateDirectory=zdx-pyxel
+StateDirectoryMode=0700
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/zdx
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/zdx-pyxel
+MemoryMax=512M
+CPUQuota=50%
+TasksMax=64
+LimitNOFILE=256
 
 [Install]
 WantedBy=multi-user.target

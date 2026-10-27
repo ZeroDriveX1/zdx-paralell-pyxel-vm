@@ -37,7 +37,7 @@ class ZDXServer(_chunked.ZDXServer):
     def _verify_android_result(self, peer_id: str, task_id: str, result: dict) -> None:
         signature = result.get("attestation_signature")
         if not signature:
-            return
+            raise PermissionError("Android result attestation is required")
         public_key = result.get("public_key")
         if not public_key or public_key != self._peer_public_keys.get(peer_id):
             raise PermissionError("result attestation key is not enrolled")
@@ -53,8 +53,29 @@ class ZDXServer(_chunked.ZDXServer):
         if not verify_ed25519_signature(public_key, signed_claim, signature):
             raise PermissionError("result attestation signature is invalid")
         inner = signed_claim.get("result", {})
+        if not isinstance(inner, dict):
+            raise PermissionError("attested result must be an object")
         if inner.get("task_id") != task_id or not inner.get("adapter_id") or not inner.get("adapter_manifest_sha256"):
             raise PermissionError("result attestation task or adapter identity is missing")
+        running = self.compute._state["running"].get(task_id)
+        if not running or running.get("worker_id") != peer_id:
+            raise PermissionError("result is not bound to this worker's lease")
+        # A signed result from a previous lease must not complete a reclaimed
+        # task, even if the same worker receives the new lease.
+        if not running.get("lease_id") or inner.get("lease_id") != running["lease_id"]:
+            raise PermissionError("signed result lease ID does not match current lease")
+        task = running["task"]
+        requested = task.get("metadata", {}).get("android_vm_adapter_id")
+        if not requested and task.get("metadata", {}).get("android_bounded_probe") is True:
+            requested = "zdx.integrity-probe"
+        if inner.get("adapter_id") != requested or inner.get("adapter_protocol_version") != 1:
+            raise PermissionError("result adapter does not match task")
+        if inner.get("input_artifact_sha256") != task.get("artifact_digest"):
+            raise PermissionError("result input digest does not match task")
+        if requested == "zdx.pyxel.android":
+            from zdx_android_vm import MANIFEST_SHA256
+            if inner.get("adapter_manifest_sha256") != MANIFEST_SHA256:
+                raise PermissionError("unrecognized Android Pyxel adapter manifest")
 
     def _record_compute_deltas(self, before: dict, after: dict, origin: str) -> None:
         super()._record_compute_deltas(before, after, origin)
@@ -73,6 +94,19 @@ class ZDXServer(_chunked.ZDXServer):
     def _handle_compute(self, conn, message):
         if message.kind == "compute_result":
             result = message.payload.get("result", {})
+            worker = self.compute._state["workers"].get(message.peer_id, {})
+            task_id = str(message.payload.get("task_id", ""))
+            running = self.compute._state["running"].get(task_id, {})
+            metadata = running.get("task", {}).get("metadata", {})
+            requires_attestation = (
+                worker.get("capabilities", {}).get("platform") == "android"
+                or bool(metadata.get("android_vm_adapter_id"))
+                or metadata.get("android_bounded_probe") is True
+            )
+            if requires_attestation and (
+                not isinstance(result, dict) or not result.get("attestation_signature")
+            ):
+                raise PermissionError("Android compute results require attestation")
             if isinstance(result, dict) and result.get("attestation_signature"):
                 self._verify_android_result(message.peer_id, str(message.payload.get("task_id", "")), result)
         super()._handle_compute(conn, message)

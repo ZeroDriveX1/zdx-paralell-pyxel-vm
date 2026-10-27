@@ -13,7 +13,8 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from zdx_compute import ComputeTask, execute_task, sha256_file
+from zdx_compute import ComputeTask, sha256_file
+from zdx_executor_sandbox import run_sandboxed_task, sandbox_ready
 from zdx_ed25519_signer import ZDXEd25519Signer
 from zdx_network import ZDXMessage
 from zdx_node import ZDXNode
@@ -73,7 +74,8 @@ class ZDXComputeWorker:
             raise ValueError("artifact response is malformed") from exc
         if len(data) > 8 * 1024 * 1024:
             raise ValueError("artifact exceeds worker limit")
-        with tempfile.NamedTemporaryFile(prefix=f"zdx-{task.task_id}-", suffix=".pyx", dir=".zdx", delete=False) as stream:
+        Path(".zdx").mkdir(mode=0o700, exist_ok=True)
+        with tempfile.NamedTemporaryFile(prefix="zdx-frame-", suffix=".png", dir=".zdx", delete=False) as stream:
             os.chmod(stream.name, 0o600)
             stream.write(data)
             path = stream.name
@@ -88,6 +90,10 @@ class ZDXComputeWorker:
         allowed, reason = policy.admit(snapshot, protected_processes=self.protected_processes)
         if not allowed:
             return {"status": "paused", "reason": reason}
+        # Do not acquire leases if the isolated executor cannot start.
+        ready, sandbox_reason = sandbox_ready()
+        if not ready:
+            return {"status": "paused", "reason": sandbox_reason}
         if not self._nice_applied and policy.nice_level:
             try:
                 os.nice(policy.nice_level)
@@ -106,6 +112,8 @@ class ZDXComputeWorker:
             return {"status": "idle", "reason": "no task available"}
         task = ComputeTask.from_dict(raw_task)
         lease_id = task.metadata.get("lease_id")
+        if not lease_id or not task.artifact_digest:
+            raise RuntimeError("coordinator returned an unleaseable or non-artifact task")
         allowed, reason = policy.admit(snapshot, task.memory_mb, self.protected_processes)
         if not allowed:
             self.node.request(self.sock, ZDXMessage(kind="compute_release", payload={"task_id": task.task_id, "reason": reason, "lease_id": lease_id}))
@@ -115,7 +123,9 @@ class ZDXComputeWorker:
             if task.artifact_digest:
                 temporary_path = self._materialize_artifact(task, str(response.payload.get("artifact_token", "")))
                 task.frame_path = temporary_path
-            result = execute_task(task)
+            # This process holds transport identity keys; it must never decode
+            # or execute remote frames itself.
+            result = run_sandboxed_task(task, stop_event=self.stop_event)
         except Exception as exc:
             self.node.request(self.sock, ZDXMessage(kind="compute_fail", payload={"task_id": task.task_id, "error": str(exc), "lease_id": lease_id}))
             return {"status": "failed", "task_id": task.task_id, "error": str(exc)}

@@ -1,5 +1,6 @@
 import multiprocessing
 import queue
+import socket
 import threading
 import time
 
@@ -147,7 +148,10 @@ def test_coordinator_restart_and_node_reauthentication(tmp_path):
         )
         thread = threading.Thread(target=instance.serve, daemon=True)
         thread.start()
-        _wait_for(lambda: instance.port)
+        # The constructor already knows the nonzero port on restart.
+        # Confirm listen() completed, rather than just checking instance.port.
+        _wait_for(lambda: instance._server_socket is not None
+                  and instance._server_socket.getsockopt(socket.SOL_SOCKET, socket.SO_ACCEPTCONN))
         return instance, thread
 
     server, thread = start(0)
