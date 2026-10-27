@@ -102,7 +102,7 @@ jobs:
       - name: Exercise real rootless sandbox with valid and malformed frames
         run: |
           python -m pip install -c requirements-constraints.txt -r requirements-dev.txt -r requirements-security.txt
-          pytest -v tests/test_desktop_sandbox_integration.py
+          python -m pytest -v tests/test_desktop_sandbox_integration.py
 
   android-release-check:
     runs-on: ubuntu-latest
