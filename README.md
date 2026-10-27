@@ -1,3 +1,15 @@
+## Licensing and scope of this public release
+
+This repository contains a publicly released **component** of the ZeroDriveX PyxelVM research and software ecosystem, **not the complete ZeroDriveX commercial platform**.
+
+- The source code in this repository is made available under its existing [MIT License](LICENSE). That license permits commercial use of **this published code**, subject to its terms.
+- The MIT license here does **not** grant access to, or license rights in, separate proprietary ZeroDriveX software, unreleased commercial components, private infrastructure, customer-specific execution maps, customer databases, credentials, or ZeroDriveX services.
+- Customer-specific execution mapping and associated provisioning are not included in this public release. The publicly documented default or configurable execution matrix is not the same as a proprietary customer execution map.
+- Deployment or use of the **separately provided commercial ZeroDriveX platform** requires authorization and applicable commercial terms from ZeroDriveX. A business's use of only this MIT-licensed repository is governed by MIT; it does not itself require an additional ZeroDriveX license.
+- Do not assume that documented research or proposed platform-wide security properties constitute an independently certified security guarantee.
+
+For commercial-platform licensing, contact ZeroDriveX through its official website.
+
 # PulseEconomics
 #**https://zerodrivex.com**
 `get-api-endpoints-location-on-the-site`
