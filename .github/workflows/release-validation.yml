@@ -75,6 +75,34 @@ jobs:
         run: |
           pytest -q             test_persistence_integration.py             test_power_loss.py             test_storage.py             test_operational_validation.py
 
+
+  worker-sandbox-linux:
+    name: rootless-podman-sandbox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Provision local rootless OCI runtime
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends podman uidmap slirp4netns fuse-overlayfs
+          fi
+          podman --version
+          podman info --format '{{.Host.CgroupsVersion}}'
+      - name: Build immutable executor image
+        run: |
+          podman build -f packaging/Dockerfile.worker-sandbox -t localhost/zdx-pyxel-executor:ci .
+          image_id="$(podman image inspect localhost/zdx-pyxel-executor:ci --format '{{.Id}}')"
+          [[ "$image_id" =~ ^sha256:[[:xdigit:]]{64}$ ]] || exit 1
+          echo "ZDX_SANDBOX_IMAGE=$image_id" >> "$GITHUB_ENV"
+      - name: Exercise real rootless sandbox with valid and malformed frames
+        run: |
+          python -m pip install -c requirements-constraints.txt -r requirements-dev.txt -r requirements-security.txt
+          pytest -v tests/test_desktop_sandbox_integration.py
+
   android-release-check:
     runs-on: ubuntu-latest
     steps:
