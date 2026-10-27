@@ -129,3 +129,27 @@ def test_android_task_requires_attestation_after_worker_capability_change(tmp_pa
     with pytest.raises(PermissionError, match="require attestation"):
         server._handle_compute(None, msg)
     assert submitted.task_id in server.compute.status()["running"]
+
+
+def test_signed_android_result_from_previous_lease_is_rejected(tmp_path):
+    signer = ZDXEd25519Signer("phone", key_path=str(tmp_path / "keys"))
+    server = ZDXServer(trusted_peers={"phone": signer.get_public_key_pem()},
+                       state_path=str(tmp_path / "state.json"), compute_state_path=str(tmp_path / "compute.json"),
+                       artifact_root=str(tmp_path / "artifacts"))
+    server.compute.register_worker("phone", capabilities())
+    submitted = server.compute.submit(task())
+    first = server.compute.claim("phone", 512, 4)
+    first_id = first.metadata["lease_id"]
+    inner = {"task_id": submitted.task_id, "lease_id": first_id,
+             "input_artifact_sha256": "a" * 64, "adapter_id": ADAPTER_ID,
+             "adapter_protocol_version": 1, "adapter_manifest_sha256": MANIFEST_SHA256}
+    claim = {"attestation_version": 1, "node_id": "phone", "result": inner,
+             "result_sha256": hashlib.sha256(json.dumps(inner, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+    signed = {**claim, "attestation_signature": signer.sign_message(claim), "public_key": signer.get_public_key_pem()}
+    server._verify_android_result("phone", submitted.task_id, signed)
+
+    server.compute.release("phone", submitted.task_id, "reschedule", lease_id=first_id)
+    second = server.compute.claim("phone", 512, 4)
+    assert second is not None and second.metadata["lease_id"] != first_id
+    with pytest.raises(PermissionError, match="signed result lease"):
+        server._verify_android_result("phone", submitted.task_id, signed)

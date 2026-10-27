@@ -1,6 +1,6 @@
 # Android Pyxel execution contract
 
-APK 1.1.0 (versionCode 2) includes `zdx.pyxel.android`, protocol 1. It executes
+APK 1.1.1 (versionCode 3) includes `zdx.pyxel.android`, protocol 1. It executes
 real static RGB PNG programs with the desktop VM's default instruction mapping.
 It is a Kotlin interpreter, not a Python runtime or a Linux/Windows emulator.
 The existing integrity probe remains available for explicitly requested probes.
@@ -79,8 +79,13 @@ The integrity probe retains its existing platform-builtin identity.
 The host node signs the result claim with its enrolled Ed25519 identity and
 signs the enclosing protocol message. The server checks both existing admission
 and claim signatures, task/worker lease ownership, requested adapter/protocol,
-compiled manifest digest and input artifact digest. The existing lease token
-check still runs before completion. A signature proves attribution, not that a
+compiled manifest digest and input artifact digest. The inner signed result
+must contain `lease_id`, equal to the running coordinator lease; the outer
+completion/release/failure message must also provide the current lease token.
+Registration capability changes cannot downgrade an already-leased task's
+attestation requirement. Legacy state records lacking lease IDs have a
+separate compatibility path and are not eligible for Android result attestation.
+A signature proves attribution, not that a
 worker computed an honest answer; independent result verification/redundancy
 remains a coordinator policy concern.
 
