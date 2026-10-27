@@ -10,6 +10,7 @@ import pytest
 from zdx_android_vm import ADAPTER_ID, FEATURE, MANIFEST_SHA256
 from zdx_compute import ComputeCoordinator, ComputeTask
 from zdx_ed25519_signer import ZDXEd25519Signer
+from zdx_network import ZDXMessage
 from zdx_parallel_vm import ParallelPyxelVM
 from zdx_server import ZDXServer
 
@@ -86,7 +87,7 @@ def test_android_vectors_remain_identical_to_desktop():
         assert vm.clock == vector["clock"]
 
 
-@pytest.mark.parametrize("tamper", [None, "digest", "adapter", "manifest", "task"])
+@pytest.mark.parametrize("tamper", [None, "digest", "adapter", "manifest", "task", "lease"])
 def test_attestation_binds_adapter_and_input_to_leased_task(tmp_path, tamper):
     signer = ZDXEd25519Signer("phone", key_path=str(tmp_path / "keys"))
     server = ZDXServer(trusted_peers={"phone": signer.get_public_key_pem()},
@@ -94,10 +95,10 @@ def test_attestation_binds_adapter_and_input_to_leased_task(tmp_path, tamper):
                        artifact_root=str(tmp_path / "artifacts"))
     server.compute.register_worker("phone", capabilities())
     submitted = server.compute.submit(task())
-    server.compute.claim("phone", 512, 4)
-    inner = {"task_id": submitted.task_id, "input_artifact_sha256": "a" * 64,
+    claimed = server.compute.claim("phone", 512, 4)
+    inner = {"task_id": submitted.task_id, "lease_id": claimed.metadata["lease_id"], "input_artifact_sha256": "a" * 64,
              "adapter_id": ADAPTER_ID, "adapter_protocol_version": 1, "adapter_manifest_sha256": MANIFEST_SHA256}
-    field = {"digest": "input_artifact_sha256", "adapter": "adapter_id", "manifest": "adapter_manifest_sha256", "task": "task_id"}.get(tamper)
+    field = {"digest": "input_artifact_sha256", "adapter": "adapter_id", "manifest": "adapter_manifest_sha256", "task": "task_id", "lease": "lease_id"}.get(tamper)
     if field:
         inner[field] = "invalid"
     claim = {"attestation_version": 1, "node_id": "phone", "result": inner,
@@ -108,3 +109,23 @@ def test_attestation_binds_adapter_and_input_to_leased_task(tmp_path, tamper):
             server._verify_android_result("phone", submitted.task_id, signed)
     else:
         server._verify_android_result("phone", submitted.task_id, signed)
+
+
+def test_android_task_requires_attestation_after_worker_capability_change(tmp_path):
+    signer = ZDXEd25519Signer("phone", key_path=str(tmp_path / "keys"))
+    server = ZDXServer(trusted_peers={"phone": signer.get_public_key_pem()},
+                       state_path=str(tmp_path / "state.json"), compute_state_path=str(tmp_path / "compute.json"),
+                       artifact_root=str(tmp_path / "artifacts"))
+    server.compute.register_worker("phone", capabilities())
+    submitted = server.compute.submit(task())
+    leased = server.compute.claim("phone", 512, 4)
+    assert leased is not None
+
+    # Capability records are self-reported; changing them after claiming must
+    # not downgrade the signed-result requirement for the queued task.
+    server.compute.register_worker("phone", {"platform": "linux"})
+    msg = ZDXMessage(kind="compute_result", peer_id="phone",
+                     payload={"task_id": submitted.task_id, "lease_id": leased.metadata["lease_id"], "result": {}})
+    with pytest.raises(PermissionError, match="require attestation"):
+        server._handle_compute(None, msg)
+    assert submitted.task_id in server.compute.status()["running"]

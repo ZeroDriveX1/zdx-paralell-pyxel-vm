@@ -1,6 +1,8 @@
 import json
 import time
 
+import pytest
+
 from zdx_compute_core import ComputeCoordinator, ComputeTask
 
 
@@ -100,3 +102,25 @@ def test_wrong_worker_is_rejected_even_with_lease_id(tmp_path):
         pass
     else:
         raise AssertionError("wrong worker was accepted")
+
+
+@pytest.mark.parametrize("operation", ["complete", "release", "fail"])
+def test_current_lease_cannot_be_finalized_without_token(tmp_path, operation):
+    frame = tmp_path / "frame.png"
+    frame.write_bytes(b"x")
+    queue = make_queue(tmp_path)
+    queue.register_worker("w1", {"cpu_count": 4})
+    queue.submit(make_task(frame, "t7"))
+    lease = queue.claim("w1", 4096, 4)
+    assert lease.metadata["lease_id"]
+
+    if operation == "complete":
+        call = lambda: queue.complete("w1", "t7", {})
+    elif operation == "release":
+        call = lambda: queue.release("w1", "t7", "no lease")
+    else:
+        call = lambda: queue.fail("w1", "t7", "no lease")
+
+    with pytest.raises(ValueError, match="stale or invalid lease"):
+        call()
+    assert "t7" in queue.status()["running"]

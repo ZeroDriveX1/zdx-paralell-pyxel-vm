@@ -162,6 +162,7 @@ class NodeService : Service() {
             taskId = task.optString("task_id")
             recordWork("INCOMING", "task received from coordinator", taskId, "incoming")
             leaseId = task.optJSONObject("metadata")?.optString("lease_id")?.takeIf { it.isNotBlank() }
+                ?: throw IOException("Android task is missing a lease ID")
             val digest = task.optString("artifact_digest")
             val memoryMb = task.optInt("memory_mb", Int.MAX_VALUE)
             if (taskId.isBlank() || digest.isBlank()) throw IOException("Android requires an artifact-backed task")
@@ -204,7 +205,9 @@ class NodeService : Service() {
             updateStatus(true, "running $taskId", workState = "RUNNING", taskId = taskId, progress = 100)
             recordWork("RUNNING", "artifact verified; adapter execution started", taskId)
             val startedAt = System.currentTimeMillis()
+            // Bind the lease to the Keystore-signed result, not only the outer envelope.
             val result = taskExecutor.execute(task, artifact, executionPolicy)
+                .put("lease_id", leaseId)
             val elapsed = System.currentTimeMillis() - startedAt
             recordWork("OUTGOING", "sending result after ${elapsed}ms compute", taskId, "outgoing")
             nodeTransport.complete(taskId, AndroidResultAttestor(this).attest(result), leaseId)

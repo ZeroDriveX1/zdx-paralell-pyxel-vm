@@ -48,7 +48,7 @@ def test_coordinator_allocates_only_tasks_within_worker_ram_budget(tmp_path):
 
     claimed = queue.claim("worker", available_memory_mb=1024, cpu_count=1)
     assert claimed.task_id == small.task_id
-    queue.release("worker", claimed.task_id, "test")
+    queue.release("worker", claimed.task_id, "test", lease_id=claimed.metadata["lease_id"])
     assert queue.claim("worker", available_memory_mb=1024, cpu_count=1).task_id == small.task_id
     assert large.task_id in queue.status()["queued"]
 

@@ -314,7 +314,9 @@ class ComputeCoordinator:
 
     def _validate_lease_locked(self, running: dict, lease_id: Optional[str]) -> None:
         expected = running.get("lease_id")
-        if lease_id is not None and expected != lease_id:
+        # New leases must always be presented. Only old persisted records that
+        # never had a lease ID may use the legacy no-token completion path.
+        if (expected is not None and lease_id != expected) or (expected is None and lease_id is not None):
             raise ValueError("stale or invalid lease")
 
     def _requeue_expired_locked(self) -> bool:

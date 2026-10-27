@@ -37,7 +37,7 @@ class ZDXServer(_chunked.ZDXServer):
     def _verify_android_result(self, peer_id: str, task_id: str, result: dict) -> None:
         signature = result.get("attestation_signature")
         if not signature:
-            return
+            raise PermissionError("Android result attestation is required")
         public_key = result.get("public_key")
         if not public_key or public_key != self._peer_public_keys.get(peer_id):
             raise PermissionError("result attestation key is not enrolled")
@@ -53,11 +53,17 @@ class ZDXServer(_chunked.ZDXServer):
         if not verify_ed25519_signature(public_key, signed_claim, signature):
             raise PermissionError("result attestation signature is invalid")
         inner = signed_claim.get("result", {})
+        if not isinstance(inner, dict):
+            raise PermissionError("attested result must be an object")
         if inner.get("task_id") != task_id or not inner.get("adapter_id") or not inner.get("adapter_manifest_sha256"):
             raise PermissionError("result attestation task or adapter identity is missing")
         running = self.compute._state["running"].get(task_id)
         if not running or running.get("worker_id") != peer_id:
             raise PermissionError("result is not bound to this worker's lease")
+        # A signed result from a previous lease must not complete a reclaimed
+        # task, even if the same worker receives the new lease.
+        if not running.get("lease_id") or inner.get("lease_id") != running["lease_id"]:
+            raise PermissionError("signed result lease ID does not match current lease")
         task = running["task"]
         requested = task.get("metadata", {}).get("android_vm_adapter_id")
         if not requested and task.get("metadata", {}).get("android_bounded_probe") is True:
@@ -89,7 +95,15 @@ class ZDXServer(_chunked.ZDXServer):
         if message.kind == "compute_result":
             result = message.payload.get("result", {})
             worker = self.compute._state["workers"].get(message.peer_id, {})
-            if worker.get("capabilities", {}).get("platform") == "android" and (
+            task_id = str(message.payload.get("task_id", ""))
+            running = self.compute._state["running"].get(task_id, {})
+            metadata = running.get("task", {}).get("metadata", {})
+            requires_attestation = (
+                worker.get("capabilities", {}).get("platform") == "android"
+                or bool(metadata.get("android_vm_adapter_id"))
+                or metadata.get("android_bounded_probe") is True
+            )
+            if requires_attestation and (
                 not isinstance(result, dict) or not result.get("attestation_signature")
             ):
                 raise PermissionError("Android compute results require attestation")
